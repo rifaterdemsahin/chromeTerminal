@@ -109,6 +109,14 @@
 
         <h2>🚀 Run</h2>
         <p><code>npm install && npm start</code> then open Chrome at <code>http://127.0.0.1:3847</code>.</p>
+        <h2>♻️ Auto-restart</h2>
+        <ul>
+          <li><code>npm start</code> runs <code>scripts/keep-alive.js</code>, which spawns <code>server.js</code> on <code>127.0.0.1:3847</code>.</li>
+          <li>If the process exits, the keeper starts it again (backoff 0.8s up to 15s).</li>
+          <li>Every 4s it hits <code>/health</code>. If the port is down after a 2.5s start grace, it kills the child and relaunches.</li>
+          <li>Ctrl+C on the keeper stops both processes.</li>
+          <li>No keeper: <code>npm run server</code>. Reload-on-edit: <code>npm run dev</code>.</li>
+        </ul>
         <p><a href="index.html">← Back to the terminal</a></p>
       </article>
     </div>

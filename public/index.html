@@ -150,6 +150,14 @@ cd chromeTerminal
 npm install
 npm start
 open -a "Google Chrome" http://127.0.0.1:3847</pre>
+          <p>
+            <strong>Auto-restart:</strong> <code>npm start</code> is a keeper
+            (<code>scripts/keep-alive.js</code>). If the Node process dies or
+            port <code>3847</code> stops answering <code>/health</code>, it
+            starts <code>server.js</code> again (backoff 0.8s–15s). Ctrl+C stops
+            the keeper and the server. One-shot without restart:
+            <code>npm run server</code>.
+          </p>
 
           <h2>Top menu</h2>
           <ul>

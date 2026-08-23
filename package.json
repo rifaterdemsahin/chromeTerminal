@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/fix-pty-helper.js",
-    "start": "node server.js",
+    "start": "node scripts/keep-alive.js",
+    "server": "node server.js",
     "dev": "node --watch server.js"
   },
   "dependencies": {

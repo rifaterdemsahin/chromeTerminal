@@ -201,6 +201,11 @@ wss.on("connection", (ws, req) => {
   });
 });
 
+server.on("error", (err) => {
+  console.error("listen failed:", err.message);
+  process.exit(1);
+});
+
 server.listen(PORT, HOST, () => {
   const url = `http://${HOST}:${PORT}`;
   console.log(`chromeTerminal listening on ${url}`);
