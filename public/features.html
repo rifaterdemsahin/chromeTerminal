@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>chromeTerminal · Features</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="features-page">
+    <div class="chrome" style="height: auto; min-height: 100%">
+      <header class="titlebar">
+        <div class="traffic">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <div class="urlbar">
+          <span class="lock">✨ Features</span>
+          <span>chromeTerminal</span>
+        </div>
+        <a class="nav-link" href="index.html">🖥️ Terminal</a>
+        <a class="nav-link accent" href="index.html">📖 Back to app</a>
+      </header>
+      <article class="features-wrap">
+        <h1>✨ chromeTerminal features</h1>
+        <p>
+          A browser chrome over a real macOS shell. The live PTY only runs on
+          <a href="http://127.0.0.1:3847">http://127.0.0.1:3847</a> after
+          <code>npm start</code>. This page is static, so it also works on
+          <a href="https://rifaterdemsahin.github.io/chromeTerminal/features.html">GitHub Pages</a>.
+        </p>
+
+        <h2>🖥️ Shell</h2>
+        <ul>
+          <li>xterm.js in the page, Node <code>node-pty</code> + WebSocket on localhost.</li>
+          <li>Login <code>zsh</code> (or <code>$SHELL</code>), cwd starts in your home directory.</li>
+          <li>Each browser tab is its own session. <strong>🆕 New session</strong> opens another tab.</li>
+          <li>Sessions park for ~30 minutes if you leave the tab, then resume when you come back.</li>
+          <li>Hidden-tab resizes are ignored so the PTY does not collapse to a tiny size.</li>
+          <li><strong>🔄 Reconnect</strong> starts a fresh shell. Double <code>Ctrl+C</code> (within 800ms) leaves the session on purpose.</li>
+        </ul>
+
+        <h2>📁 Projects</h2>
+        <ul>
+          <li><strong>🏠 Home</strong> / <strong>📁 Projects</strong> — <code>cd</code> to <code>$HOME</code> or <code>~/projects</code>.</li>
+          <li>Chip row of every folder in <code>~/projects</code> (local server only).</li>
+          <li>🔍 Filter by name.</li>
+          <li><strong>🕒 Latest</strong> — last modified first. <strong>🔤 A–Z</strong> — name order. Choice is saved.</li>
+        </ul>
+
+        <h2>▶️ Run &amp; keys</h2>
+        <ul>
+          <li><strong>🤖 grok</strong> / <strong>✨ agy</strong> — type the command and Enter.</li>
+          <li><strong>📋 ls5</strong> — newest 5 directory entries.</li>
+          <li><strong>⇥ Tab</strong> / <strong>⇤ Shift+Tab</strong> — send those keys into the PTY.</li>
+          <li><strong>💾 Save</strong> — download the terminal buffer as <code>.txt</code>.</li>
+        </ul>
+
+        <h2>🎨 Themes</h2>
+        <p>Palettes apply to the chrome and to xterm ANSI colors. Saved in this browser.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Theme</th>
+              <th>Use when</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>🌑 Night</td>
+              <td>Default dark</td>
+            </tr>
+            <tr>
+              <td>⬛ High contrast</td>
+              <td>Strongest dark contrast</td>
+            </tr>
+            <tr>
+              <td>⬜ Paper</td>
+              <td>Ink on white</td>
+            </tr>
+            <tr>
+              <td>🌲 Forest</td>
+              <td>Green phosphor</td>
+            </tr>
+            <tr>
+              <td>🌊 Ocean</td>
+              <td>Cool cyan</td>
+            </tr>
+            <tr>
+              <td>🟠 Amber</td>
+              <td>Warm, lower glare</td>
+            </tr>
+            <tr>
+              <td>🟣 Grape</td>
+              <td>Magenta on deep purple</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>🔒 Safety</h2>
+        <ul>
+          <li>Bound to <code>127.0.0.1</code>. Do not publish the PTY server.</li>
+          <li>Optional <code>TERMINAL_TOKEN</code> query param.</li>
+          <li>GitHub Pages is docs + UI preview only — no Mac shell.</li>
+        </ul>
+
+        <h2>🚀 Run</h2>
+        <p><code>npm install && npm start</code> then open Chrome at <code>http://127.0.0.1:3847</code>.</p>
+        <p><a href="index.html">← Back to the terminal</a></p>
+      </article>
+    </div>
+  </body>
+</html>
