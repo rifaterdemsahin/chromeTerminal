@@ -46,5 +46,11 @@
     "emoji": "🗺️",
     "title": "Make a plan",
     "text": "Do not edit files yet. Propose a short plan with steps, then wait for me to say go."
+  },
+  {
+    "id": "show-pwd",
+    "emoji": "📂",
+    "title": "pwd",
+    "text": "show local path pwd"
   }
 ]

@@ -20,7 +20,50 @@ const SHELL =
 const TOKEN = process.env.TERMINAL_TOKEN || "";
 
 const app = express();
+app.use(express.json({ limit: "200kb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+const USER_PROMPTS_FILE = path.join(__dirname, "public", "prompts-user.json");
+
+function readUserPrompts() {
+  try {
+    const data = JSON.parse(fs.readFileSync(USER_PROMPTS_FILE, "utf8"));
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeUserPrompts(list) {
+  fs.writeFileSync(USER_PROMPTS_FILE, JSON.stringify(list, null, 2) + "\n");
+}
+
+app.get("/api/prompts-user", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.json({ prompts: readUserPrompts() });
+});
+
+app.post("/api/prompts-user", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const title = String(req.body?.title || "").trim();
+  const text = String(req.body?.text || "").trim();
+  const emoji = String(req.body?.emoji || "💬").trim() || "💬";
+  if (!title || !text) {
+    res.status(400).json({ error: "title and text required" });
+    return;
+  }
+  const list = readUserPrompts();
+  const prompt = { id: "u-" + Date.now(), emoji, title, text };
+  list.push(prompt);
+  writeUserPrompts(list);
+  res.json({ ok: true, prompt, prompts: list });
+});
 
 const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(os.homedir(), "projects");
 

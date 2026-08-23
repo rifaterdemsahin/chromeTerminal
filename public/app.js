@@ -534,6 +534,19 @@ function saveCustomPrompts(list) {
   localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(list));
 }
 
+async function persistPromptToProject(prompt) {
+  if (!isLocal) return;
+  try {
+    await fetch("/api/prompts-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(prompt),
+    });
+  } catch {
+    // browser-only fallback
+  }
+}
+
 function allPrompts() {
   return [
     ...builtinPrompts.map((p) => ({ ...p, custom: false })),
@@ -588,13 +601,16 @@ function renderPromptLibrary() {
 }
 
 async function loadBuiltinPrompts() {
-  try {
-    const res = await fetch("prompts.json");
-    if (!res.ok) return;
-    const data = await res.json();
-    if (Array.isArray(data)) builtinPrompts = data;
-  } catch {
-    builtinPrompts = [];
+  builtinPrompts = [];
+  for (const file of ["prompts.json", "prompts-user.json"]) {
+    try {
+      const res = await fetch(file);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (Array.isArray(data)) builtinPrompts.push(...data);
+    } catch {
+      // missing file
+    }
   }
 }
 
@@ -939,9 +955,11 @@ document.getElementById("prompt-add").addEventListener("submit", (event) => {
   const title = document.getElementById("prompt-new-title").value.trim();
   const text = document.getElementById("prompt-new-text").value.trim();
   if (!title || !text) return;
+  const prompt = { id: "c-" + Date.now(), emoji: "💬", title, text };
   const list = loadCustomPrompts();
-  list.push({ id: "c-" + Date.now(), emoji: "💬", title, text });
+  list.push(prompt);
   saveCustomPrompts(list);
+  persistPromptToProject(prompt);
   document.getElementById("prompt-add").reset();
   renderPromptLibrary();
 });
