@@ -1019,6 +1019,9 @@ document.getElementById("panel-dock").addEventListener("click", (event) => {
   togglePanel(btn.getAttribute("data-panel-toggle"));
 });
 
+document.getElementById("btn-collapse-all").addEventListener("click", () => setAllPanels(false));
+document.getElementById("btn-expand-all").addEventListener("click", () => setAllPanels(true));
+
 document.getElementById("btn-focus").addEventListener("click", () => {
   const anyOpen = PANEL_IDS.some((id) => loadPanelState()[id]);
   setAllPanels(!anyOpen);

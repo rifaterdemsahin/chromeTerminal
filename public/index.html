@@ -29,6 +29,8 @@
 
       <div class="panel-dock" id="panel-dock" role="toolbar" aria-label="Collapsible panels">
         <span class="menu-label">Panels</span>
+        <button type="button" id="btn-collapse-all" class="accent" title="Hide About, Menu, Theme, Badge, and Projects">📦 Collapse all</button>
+        <button type="button" id="btn-expand-all" title="Show every chrome panel">📂 Expand all</button>
         <button type="button" class="theme-btn" data-panel-toggle="blurb">📝 About</button>
         <button type="button" class="theme-btn" data-panel-toggle="menu">🧭 Menu</button>
         <button type="button" class="theme-btn" data-panel-toggle="theme">🎨 Theme</button>
@@ -201,7 +203,7 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>📖 Guide</strong> — this panel.</li>
             <li><strong>✨ Features</strong> — full list on <a href="features.html">features.html</a>.</li>
             <li><strong>🍎 Login</strong> — start at macOS login: <a href="macos-start.html">macos-start.html</a> (<code>npm run macos-install</code>).</li>
-            <li><strong>⛶ Fullscreen</strong> — fill the display (Esc to leave). <strong>🧘 Focus</strong> hides About/Menu/Theme/Badge/Projects so the terminal is large. Use the <strong>Panels</strong> row to collapse or restore each strip; that state is saved.</li>
+            <li><strong>⛶ Fullscreen</strong> — fill the display (Esc to leave). <strong>📦 Collapse all</strong> hides About/Menu/Theme/Badge/Projects. <strong>📂 Expand all</strong> shows them. <strong>🧘 Focus</strong> toggles the same. The <strong>Panels</strong> row toggles each strip; that state is saved.</li>
             <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>. <strong>↩️ Last project</strong> — <code>cd ~/projects</code>, run <code>ls -ant</code>, then <code>cd</code> into the newest folder.</li>
             <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only). <strong>🕒 Latest</strong> sorts by folder modified time; <strong>🔤 A–Z</strong> is name order.</li>
             <li><strong>🤖 grok / ✨ agy</strong> — type that command and Enter in the live shell.</li>
