@@ -15,6 +15,9 @@ const watermarkInput = document.getElementById("watermark-input");
 
 const LS5_CMD = "ls -ant | awk 'NR==1 || n<5 { if (NR>1) n++; print }'";
 const DOUBLE_CTRL_C_MS = 800;
+const PUSH_OK = "CHROME_TERMINAL_PUSH_OK";
+const PUSH_FAIL = "CHROME_TERMINAL_PUSH_FAIL";
+const PUSH_WAIT_MS = 180000;
 
 const isLocal =
   location.hostname === "127.0.0.1" || location.hostname === "localhost";
@@ -359,6 +362,7 @@ let wakeTimer = 0;
 let pingTimer = 0;
 let allowAutoResume = true;
 let resumeAttempts = 0;
+let pushWatch = null;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -510,7 +514,10 @@ function connect(opts = {}) {
     const msg = JSON.parse(event.data);
     if (msg.type === "session" && msg.id) sessionStorage.setItem(SESSION_KEY, msg.id);
     if (msg.type === "pong") return;
-    if (msg.type === "output") term.write(msg.data);
+    if (msg.type === "output") {
+      term.write(msg.data);
+      notePushOutput(msg.data);
+    }
     if (msg.type === "exit") {
       sessionStorage.removeItem(SESSION_KEY);
       stopPing();
@@ -552,7 +559,52 @@ function saveTerminalText() {
   URL.revokeObjectURL(url);
 }
 
+function stripAnsi(text) {
+  return String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
+}
+
+function clearPushWatch() {
+  if (pushWatch?.timer) clearTimeout(pushWatch.timer);
+  pushWatch = null;
+  const btn = document.getElementById("btn-commit-push-leave");
+  if (btn) btn.disabled = false;
+}
+
+function notePushOutput(chunk) {
+  if (!pushWatch) return;
+  pushWatch.buf = (pushWatch.buf + stripAnsi(chunk)).slice(-8000);
+  if (pushWatch.buf.includes(PUSH_OK)) {
+    clearPushWatch();
+    disconnectSession("commit push completed — left");
+    return;
+  }
+  if (pushWatch.buf.includes(PUSH_FAIL)) {
+    clearPushWatch();
+    setStatus("🔴 commit/push failed · still connected");
+  }
+}
+
+function startCommitPushLeave() {
+  if (!connected) return;
+  const raw = (document.getElementById("commit-msg")?.value || "").trim() || "Update from chromeTerminal";
+  const btn = document.getElementById("btn-commit-push-leave");
+  if (btn) btn.disabled = true;
+  setStatus("⏳ commit · push…");
+  clearPushWatch();
+  pushWatch = {
+    buf: "",
+    timer: setTimeout(() => {
+      clearPushWatch();
+      setStatus("🔴 commit/push timed out · still connected");
+    }, PUSH_WAIT_MS),
+  };
+  sendCommand(
+    `git add -A && git commit -m ${shellQuote(raw)} && git push origin HEAD && printf '%s\\n' ${shellQuote(PUSH_OK)} || printf '%s\\n' ${shellQuote(PUSH_FAIL)}`
+  );
+}
+
 function disconnectSession(reason) {
+  clearPushWatch();
   allowAutoResume = false;
   stopPing();
   sessionStorage.removeItem(SESSION_KEY);
@@ -697,6 +749,14 @@ document.querySelectorAll("[data-choice]").forEach((btn) => {
     const n = btn.getAttribute("data-choice");
     if (n) sendInput(`${n}\n`);
   });
+});
+
+document.getElementById("btn-commit-push-leave").addEventListener("click", startCommitPushLeave);
+document.getElementById("commit-msg").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    startCommitPushLeave();
+  }
 });
 
 document.getElementById("btn-watermark-set").addEventListener("click", () => {

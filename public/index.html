@@ -88,6 +88,22 @@
         />
         <button type="button" id="btn-watermark-set" class="accent" title="Set the iTerm-style badge">✅ Set</button>
         <button type="button" id="btn-watermark-clear" title="Hide the badge">🚫 Clear</button>
+        <label class="menu-label" for="commit-msg">git</label>
+        <input
+          id="commit-msg"
+          type="text"
+          maxlength="120"
+          placeholder="Commit message"
+          autocomplete="off"
+        />
+        <button
+          type="button"
+          id="btn-commit-push-leave"
+          class="accent"
+          title="git add, commit, push — then close this session when push succeeds. Use at a shell prompt."
+        >
+          📤 Commit · push · leave
+        </button>
       </div>
 
       <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
@@ -149,6 +165,7 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>Ctrl+C, Ctrl+C</strong> — two interrupts within 800ms disconnect this session (get out). A single Ctrl+C still goes to the shell.</li>
             <li><strong>🎨 Theme</strong> — pick a contrast palette (saved in this browser). ⬛ High contrast and ⬜ Paper are the easiest to read.</li>
             <li><strong>🏷️ Badge</strong> — iTerm-style watermark on the terminal. Type a label and <strong>✅ Set</strong>. Project / Home / grok clicks update it so you can see where you are. Per browser tab.</li>
+            <li><strong>📤 Commit · push · leave</strong> — at a shell prompt: <code>git add -A</code>, commit, <code>git push</code>. When push succeeds, this session closes. If commit/push fails, you stay connected.</li>
           </ul>
 
           <h2>Why Pages is not a remote Mac</h2>
