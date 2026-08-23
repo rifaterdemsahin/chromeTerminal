@@ -40,10 +40,16 @@ app.get("/api/projects", (req, res) => {
     entries = fs
       .readdirSync(PROJECTS_DIR, { withFileTypes: true })
       .filter((e) => e.isDirectory() && !e.name.startsWith("."))
-      .map((e) => ({
-        name: e.name,
-        path: path.join(PROJECTS_DIR, e.name),
-      }))
+      .map((e) => {
+        const full = path.join(PROJECTS_DIR, e.name);
+        let mtimeMs = 0;
+        try {
+          mtimeMs = fs.statSync(full).mtimeMs;
+        } catch {
+          mtimeMs = 0;
+        }
+        return { name: e.name, path: full, mtimeMs };
+      })
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   } catch (err) {
     res.status(500).json({ error: err.message, projectsDir: PROJECTS_DIR });

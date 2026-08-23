@@ -1,6 +1,10 @@
 :root {
   --bg: #0f1115;
   --chrome: #1c1f26;
+  --menu: #161920;
+  --blurb: #12151c;
+  --chip: #12141a;
+  --page: #000000;
   --border: #2a2f3a;
   --text: #e8eaed;
   --muted: #9aa0a6;
@@ -16,7 +20,7 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: #000;
+  background: var(--page);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -92,8 +96,15 @@ button:hover {
 }
 
 button.accent {
-  border-color: #3d5a80;
+  border-color: var(--accent);
   color: var(--accent);
+}
+
+button.theme-btn.active {
+  background: var(--accent);
+  color: var(--page);
+  border-color: var(--accent);
+  font-weight: 600;
 }
 
 #reconnect:hover {
@@ -106,7 +117,7 @@ button.accent {
   align-items: center;
   gap: 12px 16px;
   padding: 8px 12px;
-  background: #161920;
+  background: var(--menu);
   border-bottom: 1px solid var(--border);
 }
 
@@ -151,10 +162,25 @@ button.accent {
   border-bottom: 1px solid var(--border);
 }
 
-.project-bar button {
+.theme-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--menu);
+  border-bottom: 1px solid var(--border);
+}
+
+.theme-bar .menu-label {
+  margin-right: 4px;
+}
+
+.project-bar button,
+.theme-bar button {
   padding: 4px 8px;
   font-size: 11px;
-  background: #12141a;
+  background: var(--chip);
 }
 
 .project-bar button:hover {
@@ -188,7 +214,7 @@ button.accent {
   font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
-  background: #12151c;
+  background: var(--blurb);
   border-bottom: 1px solid var(--border);
 }
 

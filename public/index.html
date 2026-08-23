@@ -60,8 +60,14 @@
         <div class="menu-group grow">
           <label class="menu-label" for="project-filter">Projects</label>
           <input id="project-filter" type="search" placeholder="🔍 Filter projects…" autocomplete="off" />
+          <button type="button" id="btn-sort-name" class="theme-btn" title="Sort projects A–Z">🔤 A–Z</button>
+          <button type="button" id="btn-sort-latest" class="theme-btn" title="Sort projects by last modified">🕒 Latest</button>
         </div>
       </nav>
+
+      <div class="theme-bar" id="theme-bar" role="group" aria-label="Color themes">
+        <span class="menu-label">🎨 Theme</span>
+      </div>
 
       <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
 
@@ -109,12 +115,13 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
           <ul>
             <li><strong>📖 Guide</strong> — this panel.</li>
             <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>.</li>
-            <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only).</li>
+            <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only). <strong>🕒 Latest</strong> sorts by folder modified time; <strong>🔤 A–Z</strong> is name order.</li>
             <li><strong>🤖 grok / ✨ agy</strong> — type that command and Enter in the live shell.</li>
             <li><strong>📋 ls5</strong> — newest 5 directory entries (<code>ls -ant</code>, skip the total line, first 5).</li>
             <li><strong>💾 Save</strong> — download the visible terminal buffer as a <code>.txt</code> file.</li>
             <li><strong>⇥ Tab / ⇤ Shift+Tab</strong> — send those keys (handy in grok/agy pickers).</li>
             <li><strong>Ctrl+C, Ctrl+C</strong> — two interrupts within 800ms disconnect this session (get out). A single Ctrl+C still goes to the shell.</li>
+            <li><strong>🎨 Theme</strong> — pick a contrast palette (saved in this browser). ⬛ High contrast and ⬜ Paper are the easiest to read.</li>
           </ul>
 
           <h2>Why Pages is not a remote Mac</h2>
