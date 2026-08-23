@@ -9,6 +9,10 @@ const projectFilter = document.getElementById("project-filter");
 const guideEl = document.getElementById("guide");
 const guideBtn = document.getElementById("btn-guide");
 const guideClose = document.getElementById("guide-close");
+const promptsEl = document.getElementById("prompts");
+const promptsBtn = document.getElementById("btn-prompts");
+const promptsClose = document.getElementById("prompts-close");
+const promptListEl = document.getElementById("prompt-list");
 const themeBar = document.getElementById("theme-bar");
 const watermarkEl = document.getElementById("watermark");
 const watermarkInput = document.getElementById("watermark-input");
@@ -354,6 +358,7 @@ const SESSION_KEY = "chromeTerminal.session";
 const WATERMARK_KEY = "chromeTerminal.watermark";
 
 const PANELS_KEY = "chromeTerminal.panels";
+const CUSTOM_PROMPTS_KEY = "chromeTerminal.customPrompts";
 const PANEL_IDS = ["blurb", "menu", "theme", "badge", "projects"];
 const SORT_KEY = "chromeTerminal.projectSort";
 let projectSort = localStorage.getItem(SORT_KEY) === "latest" ? "latest" : "name";
@@ -482,8 +487,97 @@ function wakeTerminal() {
   }, delay);
 }
 
+let builtinPrompts = [];
+
 function openGuide() {
   guideEl.hidden = false;
+}
+
+function openPrompts() {
+  promptsEl.hidden = false;
+  renderPromptLibrary();
+}
+
+function closePrompts() {
+  promptsEl.hidden = true;
+  if (isLocal) term.focus();
+}
+
+function loadCustomPrompts() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || "[]");
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomPrompts(list) {
+  localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(list));
+}
+
+function allPrompts() {
+  return [
+    ...builtinPrompts.map((p) => ({ ...p, custom: false })),
+    ...loadCustomPrompts().map((p) => ({ ...p, custom: true })),
+  ];
+}
+
+function sendPrompt(text, submit) {
+  closePrompts();
+  sendInput(submit ? `${text}\n` : text);
+}
+
+function renderPromptLibrary() {
+  promptListEl.replaceChildren();
+  const items = allPrompts();
+  if (!items.length) {
+    promptListEl.textContent = "No prompts yet.";
+    return;
+  }
+  for (const prompt of items) {
+    const card = document.createElement("article");
+    card.className = "prompt-card";
+    const title = document.createElement("h3");
+    title.textContent = `${prompt.emoji || "💬"} ${prompt.title}`;
+    const body = document.createElement("pre");
+    body.textContent = prompt.text;
+    const row = document.createElement("div");
+    row.className = "row";
+    const insert = document.createElement("button");
+    insert.type = "button";
+    insert.textContent = "📥 Insert";
+    insert.addEventListener("click", () => sendPrompt(prompt.text, false));
+    const send = document.createElement("button");
+    send.type = "button";
+    send.className = "accent";
+    send.textContent = "📤 Send";
+    send.addEventListener("click", () => sendPrompt(prompt.text, true));
+    row.append(insert, send);
+    if (prompt.custom) {
+      const del = document.createElement("button");
+      del.type = "button";
+      del.textContent = "🗑️ Remove";
+      del.addEventListener("click", () => {
+        saveCustomPrompts(loadCustomPrompts().filter((p) => p.id !== prompt.id));
+        renderPromptLibrary();
+      });
+      row.append(del);
+    }
+    card.append(title, body, row);
+    promptListEl.append(card);
+  }
+}
+
+async function loadBuiltinPrompts() {
+  try {
+    const res = await fetch("prompts.json");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data)) builtinPrompts = data;
+  } catch {
+    builtinPrompts = [];
+  }
 }
 
 function closeGuide() {
@@ -813,8 +907,29 @@ guideClose.addEventListener("click", closeGuide);
 guideEl.addEventListener("click", (event) => {
   if (event.target === guideEl) closeGuide();
 });
+promptsBtn.addEventListener("click", openPrompts);
+promptsClose.addEventListener("click", closePrompts);
+promptsEl.addEventListener("click", (event) => {
+  if (event.target === promptsEl) closePrompts();
+});
+document.getElementById("prompt-add").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const title = document.getElementById("prompt-new-title").value.trim();
+  const text = document.getElementById("prompt-new-text").value.trim();
+  if (!title || !text) return;
+  const list = loadCustomPrompts();
+  list.push({ id: "c-" + Date.now(), emoji: "💬", title, text });
+  saveCustomPrompts(list);
+  document.getElementById("prompt-add").reset();
+  renderPromptLibrary();
+});
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !guideEl.hidden) closeGuide();
+  if (event.key !== "Escape") return;
+  if (!promptsEl.hidden) {
+    closePrompts();
+    return;
+  }
+  if (!guideEl.hidden) closeGuide();
 });
 
 function loadPanelState() {
@@ -903,6 +1018,7 @@ window.addEventListener("load", () => {
   setProjectSort(projectSort);
   setWatermark(sessionStorage.getItem(WATERMARK_KEY) || "", false);
   applyPanelState(loadPanelState());
+  loadBuiltinPrompts();
   syncFullscreenButton();
   fit();
   connect();

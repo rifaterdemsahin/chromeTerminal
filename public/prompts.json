@@ -1,0 +1,50 @@
+[
+  {
+    "id": "review",
+    "emoji": "🔎",
+    "title": "Review my changes",
+    "text": "Review my uncommitted local changes. Lead with the important findings, skip nits unless they are bugs."
+  },
+  {
+    "id": "commit-push",
+    "emoji": "📤",
+    "title": "Commit and push",
+    "text": "Look at git status and the diff. Write a clear commit message, commit, and push to origin HEAD. Do not use git commit --amend unless I ask."
+  },
+  {
+    "id": "explain-repo",
+    "emoji": "🧭",
+    "title": "Explain this repo",
+    "text": "Explain what this repository does, how to run it, and the main folders. Keep it short."
+  },
+  {
+    "id": "continue",
+    "emoji": "▶️",
+    "title": "Continue",
+    "text": "Continue from where you left off. Do not restart the whole task."
+  },
+  {
+    "id": "fix-fail",
+    "emoji": "🛠️",
+    "title": "Fix the failure",
+    "text": "The last command failed. Read the error, fix it, and re-run until it works or you are blocked."
+  },
+  {
+    "id": "git-status",
+    "emoji": "📊",
+    "title": "Git snapshot",
+    "text": "Show git status -sb, the last 8 commits, and a short summary of the working tree."
+  },
+  {
+    "id": "tests",
+    "emoji": "🧪",
+    "title": "Run tests",
+    "text": "Find how this project runs tests and run them. Report failures with the file and what to fix."
+  },
+  {
+    "id": "plan",
+    "emoji": "🗺️",
+    "title": "Make a plan",
+    "text": "Do not edit files yet. Propose a short plan with steps, then wait for me to say go."
+  }
+]
