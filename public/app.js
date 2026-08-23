@@ -352,7 +352,7 @@ function renderThemes() {
 
 const SESSION_KEY = "chromeTerminal.session";
 const WATERMARK_KEY = "chromeTerminal.watermark";
-const LAST_PROJECT_KEY = "chromeTerminal.lastProject";
+
 const PANELS_KEY = "chromeTerminal.panels";
 const PANEL_IDS = ["blurb", "menu", "theme", "badge", "projects"];
 const SORT_KEY = "chromeTerminal.projectSort";
@@ -418,39 +418,18 @@ function setWatermark(text, persist = true) {
   document.title = label ? `${label} · chromeTerminal` : "chromeTerminal";
 }
 
-function readLastProject() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(LAST_PROJECT_KEY) || "null");
-    if (raw && typeof raw.path === "string" && raw.path) return raw;
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
-function syncLastProjectButton() {
-  const btn = document.getElementById("btn-last-project");
-  if (!btn) return;
-  const last = readLastProject();
-  btn.disabled = !last;
-  btn.title = last
-    ? `cd into ${last.path}`
-    : "No last project yet — open a project chip first";
-  btn.textContent = last ? `↩️ ${last.name || "Last project"}` : "↩️ Last project";
-}
-
-function rememberLastProject(dirPath, name) {
-  localStorage.setItem(
-    LAST_PROJECT_KEY,
-    JSON.stringify({ path: dirPath, name: name || dirPath.split("/").pop() })
-  );
-  syncLastProjectButton();
-}
-
-function cdTo(dirPath, badge, asProject = false) {
+function cdTo(dirPath, badge) {
   sendCommand(`cd ${shellQuote(dirPath)}`);
   if (badge) setWatermark(badge);
-  if (asProject) rememberLastProject(dirPath, badge);
+}
+
+function goLastProject() {
+  const root = catalog.projectsDir || `${catalog.home || "$HOME"}/projects`;
+  sendCommand(
+    `cd ${shellQuote(root)} && ls -ant && newest=$(ls -1td */ 2>/dev/null | head -n 1) && if [ -n "$newest" ]; then cd -- "$newest" && printf '\\n📂 last project → %s\\n' "$PWD"; else printf '\\n(no project folders)\\n'; fi`
+  );
+  const newest = [...(catalog.projects || [])].sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0))[0];
+  if (newest) setWatermark(newest.name);
 }
 
 function fit() {
@@ -709,7 +688,7 @@ function renderProjects() {
     btn.title = project.mtimeMs
       ? `${project.path} · ${new Date(project.mtimeMs).toLocaleString()}`
       : project.path;
-    btn.addEventListener("click", () => cdTo(project.path, project.name, true));
+    btn.addEventListener("click", () => cdTo(project.path, project.name));
     projectBar.append(btn);
   }
 }
@@ -781,14 +760,7 @@ document.getElementById("btn-projects").addEventListener("click", () => {
   cdTo(catalog.projectsDir || `${catalog.home}/projects`, "projects");
 });
 
-document.getElementById("btn-last-project").addEventListener("click", () => {
-  const last = readLastProject();
-  if (!last) {
-    setStatus("⚪ no last project yet");
-    return;
-  }
-  cdTo(last.path, last.name, true);
-});
+document.getElementById("btn-last-project").addEventListener("click", goLastProject);
 
 document.querySelectorAll("[data-run]").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -931,7 +903,6 @@ window.addEventListener("load", () => {
   setProjectSort(projectSort);
   setWatermark(sessionStorage.getItem(WATERMARK_KEY) || "", false);
   applyPanelState(loadPanelState());
-  syncLastProjectButton();
   syncFullscreenButton();
   fit();
   connect();
