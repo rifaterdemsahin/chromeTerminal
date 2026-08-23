@@ -52,6 +52,7 @@
           <span class="menu-label">Go</span>
           <button type="button" data-cd="$HOME">🏠 Home</button>
           <button type="button" id="btn-projects" data-cd-projects>📁 Projects</button>
+          <button type="button" id="btn-last-project" title="cd into the last project chip you opened">↩️ Last project</button>
         </div>
         <div class="menu-group">
           <span class="menu-label">Run</span>
@@ -180,7 +181,7 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>✨ Features</strong> — full list on <a href="features.html">features.html</a>.</li>
             <li><strong>🍎 Login</strong> — start at macOS login: <a href="macos-start.html">macos-start.html</a> (<code>npm run macos-install</code>).</li>
             <li><strong>⛶ Fullscreen</strong> — fill the display (Esc to leave). <strong>🧘 Focus</strong> hides About/Menu/Theme/Badge/Projects so the terminal is large. Use the <strong>Panels</strong> row to collapse or restore each strip; that state is saved.</li>
-            <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>.</li>
+            <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>. <strong>↩️ Last project</strong> jumps to the last project chip you opened (saved in this browser).</li>
             <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only). <strong>🕒 Latest</strong> sorts by folder modified time; <strong>🔤 A–Z</strong> is name order.</li>
             <li><strong>🤖 grok / ✨ agy</strong> — type that command and Enter in the live shell.</li>
             <li><strong>📋 ls5</strong> — newest 5 directory entries (<code>ls -ant</code>, skip the total line, first 5).</li>
