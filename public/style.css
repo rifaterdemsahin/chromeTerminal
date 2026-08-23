@@ -193,11 +193,55 @@ button.theme-btn.active {
   font-size: 12px;
 }
 
+.term-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
 #terminal {
   flex: 1;
   min-height: 0;
   padding: 8px;
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+.watermark {
+  position: absolute;
+  right: 20px;
+  bottom: 24px;
+  z-index: 2;
+  pointer-events: none;
+  max-width: 72%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(28px, 7vw, 80px);
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-align: right;
+  color: var(--text);
+  opacity: 0.2;
+  user-select: none;
+}
+
+.badge-bar input {
+  flex: 1;
+  min-width: 180px;
   background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
 }
 
 .xterm {

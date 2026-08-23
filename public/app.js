@@ -10,6 +10,8 @@ const guideEl = document.getElementById("guide");
 const guideBtn = document.getElementById("btn-guide");
 const guideClose = document.getElementById("guide-close");
 const themeBar = document.getElementById("theme-bar");
+const watermarkEl = document.getElementById("watermark");
+const watermarkInput = document.getElementById("watermark-input");
 
 const LS5_CMD = "ls -ant | awk 'NR==1 || n<5 { if (NR>1) n++; print }'";
 const DOUBLE_CTRL_C_MS = 800;
@@ -345,6 +347,7 @@ function renderThemes() {
 }
 
 const SESSION_KEY = "chromeTerminal.session";
+const WATERMARK_KEY = "chromeTerminal.watermark";
 const SORT_KEY = "chromeTerminal.projectSort";
 let projectSort = localStorage.getItem(SORT_KEY) === "latest" ? "latest" : "name";
 
@@ -396,8 +399,20 @@ function sendCommand(command) {
   sendInput(`${command}\n`);
 }
 
-function cdTo(dirPath) {
+function setWatermark(text, persist = true) {
+  const label = String(text || "").trim();
+  watermarkEl.textContent = label;
+  watermarkInput.value = label;
+  if (persist) {
+    if (label) sessionStorage.setItem(WATERMARK_KEY, label);
+    else sessionStorage.removeItem(WATERMARK_KEY);
+  }
+  document.title = label ? `${label} · chromeTerminal` : "chromeTerminal";
+}
+
+function cdTo(dirPath, badge) {
   sendCommand(`cd ${shellQuote(dirPath)}`);
+  if (badge) setWatermark(badge);
 }
 
 function fit() {
@@ -589,7 +604,7 @@ function renderProjects() {
     btn.title = project.mtimeMs
       ? `${project.path} · ${new Date(project.mtimeMs).toLocaleString()}`
       : project.path;
-    btn.addEventListener("click", () => cdTo(project.path));
+    btn.addEventListener("click", () => cdTo(project.path, project.name));
     projectBar.append(btn);
   }
 }
@@ -652,16 +667,21 @@ document.getElementById("btn-ls5").addEventListener("click", () => {
 document.querySelectorAll("[data-cd]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const target = btn.getAttribute("data-cd") === "$HOME" ? catalog.home || "$HOME" : btn.getAttribute("data-cd");
-    cdTo(target);
+    const badge = btn.getAttribute("data-cd") === "$HOME" ? "home" : target;
+    cdTo(target, badge);
   });
 });
 
 document.getElementById("btn-projects").addEventListener("click", () => {
-  cdTo(catalog.projectsDir || `${catalog.home}/projects`);
+  cdTo(catalog.projectsDir || `${catalog.home}/projects`, "projects");
 });
 
 document.querySelectorAll("[data-run]").forEach((btn) => {
-  btn.addEventListener("click", () => sendCommand(btn.getAttribute("data-run")));
+  btn.addEventListener("click", () => {
+    const cmd = btn.getAttribute("data-run");
+    sendCommand(cmd);
+    if (cmd) setWatermark(cmd);
+  });
 });
 
 document.querySelectorAll("[data-key]").forEach((btn) => {
@@ -677,6 +697,18 @@ document.querySelectorAll("[data-choice]").forEach((btn) => {
     const n = btn.getAttribute("data-choice");
     if (n) sendInput(`${n}\n`);
   });
+});
+
+document.getElementById("btn-watermark-set").addEventListener("click", () => {
+  setWatermark(watermarkInput.value);
+});
+document.getElementById("btn-watermark-clear").addEventListener("click", () => setWatermark(""));
+watermarkInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    setWatermark(watermarkInput.value);
+    term.focus();
+  }
 });
 
 projectFilter.addEventListener("input", renderProjects);
@@ -696,6 +728,7 @@ window.addEventListener("load", () => {
   renderThemes();
   applyTheme(localStorage.getItem(THEME_KEY) || "night");
   setProjectSort(projectSort);
+  setWatermark(sessionStorage.getItem(WATERMARK_KEY) || "", false);
   fit();
   connect();
   loadProjects().catch((err) => {

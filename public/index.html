@@ -77,9 +77,25 @@
         <span class="menu-label">🎨 Theme</span>
       </div>
 
+      <div class="theme-bar badge-bar">
+        <label class="menu-label" for="watermark-input">🏷️ Badge</label>
+        <input
+          id="watermark-input"
+          type="text"
+          maxlength="48"
+          placeholder="Where am I? e.g. neso, grok, chromeTerminal"
+          autocomplete="off"
+        />
+        <button type="button" id="btn-watermark-set" class="accent" title="Set the iTerm-style badge">✅ Set</button>
+        <button type="button" id="btn-watermark-clear" title="Hide the badge">🚫 Clear</button>
+      </div>
+
       <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
 
-      <main id="terminal"></main>
+      <div class="term-wrap">
+        <div id="watermark" class="watermark" aria-hidden="true"></div>
+        <main id="terminal"></main>
+      </div>
     </div>
 
     <aside id="guide" class="guide" hidden>
@@ -132,6 +148,7 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>⇥ Tab / ⇤ Shift+Tab</strong> — send those keys (handy in grok/agy pickers).</li>
             <li><strong>Ctrl+C, Ctrl+C</strong> — two interrupts within 800ms disconnect this session (get out). A single Ctrl+C still goes to the shell.</li>
             <li><strong>🎨 Theme</strong> — pick a contrast palette (saved in this browser). ⬛ High contrast and ⬜ Paper are the easiest to read.</li>
+            <li><strong>🏷️ Badge</strong> — iTerm-style watermark on the terminal. Type a label and <strong>✅ Set</strong>. Project / Home / grok clicks update it so you can see where you are. Per browser tab.</li>
           </ul>
 
           <h2>Why Pages is not a remote Mac</h2>
