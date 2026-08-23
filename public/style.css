@@ -216,6 +216,28 @@ button.theme-btn.active {
   margin-right: 4px;
 }
 
+.lint-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.lint.err {
+  color: var(--lint-error, #e85d75);
+}
+.lint.warn {
+  color: var(--lint-warn, #e6c36a);
+}
+.lint.ok {
+  color: var(--lint-ok, #6bcf8e);
+}
+.lint.info {
+  color: var(--lint-info, #5fd4e0);
+}
+
 .project-bar button,
 .theme-bar button {
   padding: 4px 8px;
