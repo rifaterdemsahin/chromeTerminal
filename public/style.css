@@ -181,3 +181,80 @@ button.accent {
 .xterm-viewport {
   overflow-y: auto !important;
 }
+
+.blurb {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  background: #12151c;
+  border-bottom: 1px solid var(--border);
+}
+
+.blurb code {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.guide {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  overflow: auto;
+  z-index: 20;
+}
+
+.guide[hidden] {
+  display: none;
+}
+
+.guide-panel {
+  width: min(720px, 100%);
+  background: var(--chrome);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px 28px;
+}
+
+.guide-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.guide-head h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.guide-body h2 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+
+.guide-body p,
+.guide-body li {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.guide-body a {
+  color: var(--accent);
+}
+
+.guide-body pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  overflow: auto;
+  font-size: 12px;
+  color: var(--text);
+}

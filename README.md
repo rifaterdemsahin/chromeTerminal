@@ -11,7 +11,11 @@ npm install
 npm start
 ```
 
-Then open [http://127.0.0.1:3847](http://127.0.0.1:3847) in Chrome.
+Then open [http://127.0.0.1:3847](http://127.0.0.1:3847) in Chrome. Use the **Guide** button in the top menu for the in-app walkthrough.
+
+## GitHub Pages
+
+The UI and guide are published at [https://rifaterdemsahin.github.io/chromeTerminal/](https://rifaterdemsahin.github.io/chromeTerminal/). That site is static: it explains the app and shows the chrome. It does **not** attach to your Mac. The live PTY is only `npm start` on localhost. A GitHub Actions workflow deploys `public/` on every push to `main`.
 
 ```bash
 open -a "Google Chrome" http://127.0.0.1:3847

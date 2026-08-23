@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>chromeTerminal</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="chrome">
@@ -16,13 +16,23 @@
           <span class="dot green"></span>
         </div>
         <div class="urlbar">
-          <span class="lock">localhost</span>
+          <span class="lock" id="origin-label">chromeTerminal</span>
           <span id="status">connecting…</span>
         </div>
         <button id="reconnect" type="button">Reconnect</button>
       </header>
 
+      <p class="blurb">
+        A browser window over your Mac shell. The live terminal only works on
+        <strong>http://127.0.0.1:3847</strong> after <code>npm start</code>.
+        GitHub Pages hosts this UI and the guide — it cannot spawn your zsh.
+      </p>
+
       <nav class="menu" aria-label="Terminal actions">
+        <div class="menu-group">
+          <span class="menu-label">Help</span>
+          <button type="button" id="btn-guide" class="accent">Guide</button>
+        </div>
         <div class="menu-group">
           <span class="menu-label">Go</span>
           <button type="button" data-cd="$HOME">Home</button>
@@ -48,9 +58,67 @@
 
       <main id="terminal"></main>
     </div>
+
+    <aside id="guide" class="guide" hidden>
+      <div class="guide-panel" role="dialog" aria-labelledby="guide-title">
+        <div class="guide-head">
+          <h1 id="guide-title">chromeTerminal guide</h1>
+          <button type="button" id="guide-close">Close</button>
+        </div>
+        <div class="guide-body">
+          <h2>What this is</h2>
+          <p>
+            chromeTerminal is a web UI (xterm.js) that talks to a small Node server on your Mac.
+            The server opens a real PTY and runs your login shell (<code>zsh</code>). Keystrokes
+            go over a WebSocket; output comes back into the page. It is your machine, not a
+            cloud terminal.
+          </p>
+
+          <h2>Where it works</h2>
+          <ul>
+            <li>
+              <strong>Live shell:</strong> only on this computer at
+              <a href="http://127.0.0.1:3847">http://127.0.0.1:3847</a> while
+              <code>npm start</code> is running. Bound to localhost on purpose.
+            </li>
+            <li>
+              <strong>GitHub Pages:</strong>
+              <a href="https://rifaterdemsahin.github.io/chromeTerminal/">https://rifaterdemsahin.github.io/chromeTerminal/</a>
+              — static copy of this page and this guide. Pages cannot run Node, cannot spawn
+              <code>zsh</code>, and cannot see <code>~/projects</code>.
+            </li>
+          </ul>
+
+          <h2>How to run the real terminal</h2>
+          <pre>git clone https://github.com/rifaterdemsahin/chromeTerminal.git
+cd chromeTerminal
+npm install
+npm start
+open -a "Google Chrome" http://127.0.0.1:3847</pre>
+
+          <h2>Top menu</h2>
+          <ul>
+            <li><strong>Guide</strong> — this panel.</li>
+            <li><strong>Home / Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>.</li>
+            <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only).</li>
+            <li><strong>grok / agy</strong> — type that command and Enter in the live shell.</li>
+            <li><strong>Tab / Shift+Tab</strong> — send those keys (handy in grok/agy pickers).</li>
+          </ul>
+
+          <h2>Why Pages is not a remote Mac</h2>
+          <p>
+            GitHub Pages only serves HTML, CSS, and JS. The PTY lives in <code>server.js</code>.
+            Do not bind the server to <code>0.0.0.0</code> or put it on the public internet.
+            Optional: <code>TERMINAL_TOKEN=secret npm start</code> then
+            <code>?token=secret</code>.
+          </p>
+        </div>
+      </div>
+    </aside>
+
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
-    <script src="/app.js"></script>
+    <script src="app.js"></script>
   </body>
 </html>

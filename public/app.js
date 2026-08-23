@@ -1,8 +1,15 @@
 const statusEl = document.getElementById("status");
+const originLabel = document.getElementById("origin-label");
 const termHost = document.getElementById("terminal");
 const reconnectBtn = document.getElementById("reconnect");
 const projectBar = document.getElementById("project-bar");
 const projectFilter = document.getElementById("project-filter");
+const guideEl = document.getElementById("guide");
+const guideBtn = document.getElementById("btn-guide");
+const guideClose = document.getElementById("guide-close");
+
+const isLocal =
+  location.hostname === "127.0.0.1" || location.hostname === "localhost";
 
 const term = new Terminal({
   cursorBlink: true,
@@ -74,7 +81,26 @@ function fit() {
   }
 }
 
+function openGuide() {
+  guideEl.hidden = false;
+}
+
+function closeGuide() {
+  guideEl.hidden = true;
+  if (isLocal) term.focus();
+}
+
 function connect() {
+  if (!isLocal) {
+    setStatus("docs only · GitHub Pages");
+    term.write(
+      "\x1b[33mGitHub Pages cannot open your Mac shell.\x1b[0m\r\n" +
+        "Clone the repo, run \x1b[1mnpm start\x1b[0m, then open http://127.0.0.1:3847\r\n" +
+        "Use the Guide button in the top menu for the full walkthrough.\r\n"
+    );
+    return;
+  }
+
   if (socket) {
     socket.onclose = null;
     socket.close();
@@ -117,7 +143,11 @@ function renderProjects() {
   if (!matches.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = q ? `No project matches “${q}”` : "No projects found";
+    empty.textContent = q
+      ? `No project matches “${q}”`
+      : isLocal
+        ? "No projects found"
+        : "Project chips load only from the local server";
     projectBar.append(empty);
     return;
   }
@@ -133,6 +163,10 @@ function renderProjects() {
 }
 
 async function loadProjects() {
+  if (!isLocal) {
+    renderProjects();
+    return;
+  }
   const token = tokenFromUrl();
   const q = token ? `?token=${encodeURIComponent(token)}` : "";
   const res = await fetch(`/api/projects${q}`);
@@ -176,11 +210,21 @@ document.querySelectorAll("[data-key]").forEach((btn) => {
 });
 
 projectFilter.addEventListener("input", renderProjects);
+guideBtn.addEventListener("click", openGuide);
+guideClose.addEventListener("click", closeGuide);
+guideEl.addEventListener("click", (event) => {
+  if (event.target === guideEl) closeGuide();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !guideEl.hidden) closeGuide();
+});
 
 window.addEventListener("load", () => {
+  originLabel.textContent = isLocal ? "localhost" : "GitHub Pages";
   fit();
   connect();
   loadProjects().catch((err) => {
     projectBar.textContent = err.message;
   });
+  if (!isLocal) openGuide();
 });
