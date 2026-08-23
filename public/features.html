@@ -19,6 +19,7 @@
           <span>chromeTerminal</span>
         </div>
         <a class="nav-link" href="index.html">🖥️ Terminal</a>
+        <a class="nav-link" href="macos-start.html">🍎 Login</a>
         <a class="nav-link accent" href="index.html">📖 Back to app</a>
       </header>
       <article class="features-wrap">
@@ -116,8 +117,9 @@
           <li>Every 4s it hits <code>/health</code>. If the port is down after a 2.5s start grace, it kills the child and relaunches.</li>
           <li>Ctrl+C on the keeper stops both processes.</li>
           <li>No keeper: <code>npm run server</code>. Reload-on-edit: <code>npm run dev</code>.</li>
-          <li><strong>Start at login:</strong> <code>npm run macos-install</code> loads LaunchAgent <code>com.rifaterdemsahin.chrometerminal</code> (your user, not root). It runs the keeper when you sign in and if the keeper dies. <code>npm run macos-uninstall</code> removes it. Logs: <code>~/Library/Logs/chromeTerminal.out.log</code>.</li>
+          <li><strong>Start at login:</strong> full page <a href="macos-start.html">macos-start.html</a>. <code>npm run macos-install</code> loads LaunchAgent <code>com.rifaterdemsahin.chrometerminal</code> (your user, not root). It runs the keeper when you sign in and if the keeper dies. <code>npm run macos-uninstall</code> removes it. Logs: <code>~/Library/Logs/chromeTerminal.out.log</code>.</li>
         </ul>
+        <p><a class="nav-link accent" href="macos-start.html">🍎 Start at login — how to install and check</a></p>
         <p><a href="index.html">← Back to the terminal</a></p>
       </article>
     </div>

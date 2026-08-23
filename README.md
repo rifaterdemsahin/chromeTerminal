@@ -28,21 +28,34 @@ One-shot without restart: `npm run server`. File-watch dev: `npm run dev` (no ke
 
 ## Start when macOS starts (login)
 
-This is a **LaunchAgent** (your user, at login), not a root LaunchDaemon. That is what you want: the PTY must run as you, with your `zsh`, `nvm` `node`, and `~/projects`.
+Full walkthrough (install, verify, uninstall, login vs boot): [macos-start.html](https://rifaterdemsahin.github.io/chromeTerminal/macos-start.html).
+
+This is a **LaunchAgent** (your user, at login), not a root LaunchDaemon. The PTY must run as you, with your `zsh`, nvm `node`, and `~/projects`.
 
 ```bash
 npm run macos-install     # write ~/Library/LaunchAgents/com.rifaterdemsahin.chrometerminal.plist and load it
 npm run macos-uninstall   # bootout + delete the plist
 ```
 
-The agent runs `/bin/zsh -lc` so nvm’s Node is on `PATH`, then `node scripts/keep-alive.js`. `RunAtLoad` + `KeepAlive` mean: start when you log in, and launchd restarts the keeper if it exits. The keeper still restarts `server.js` if port **3847** dies.
+What that does:
 
-Logs:
+| | |
+|---|---|
+| Label | `com.rifaterdemsahin.chrometerminal` |
+| Plist | `~/Library/LaunchAgents/com.rifaterdemsahin.chrometerminal.plist` |
+| Starts | Your login (`RunAtLoad`) — not before the login screen |
+| Restarts | launchd restarts the keeper (`KeepAlive`); the keeper restarts `server.js` if **3847** / `/health` dies |
+| How | `/bin/zsh -lc` so nvm’s Node is on `PATH`, then `node scripts/keep-alive.js` |
+| Logs | `~/Library/Logs/chromeTerminal.out.log` and `.err.log` |
 
-- `~/Library/Logs/chromeTerminal.out.log`
-- `~/Library/Logs/chromeTerminal.err.log`
+Verify (no reboot needed; install starts it now **and** at next login):
 
-Check: `launchctl print gui/$(id -u)/com.rifaterdemsahin.chrometerminal` and `curl -s http://127.0.0.1:3847/health`.
+```bash
+curl -s http://127.0.0.1:3847/health
+launchctl print gui/$(id -u)/com.rifaterdemsahin.chrometerminal | head
+```
+
+If the agent is loaded, do not also run `npm start` in a terminal — two keepers will fight over port 3847. Uninstall first if you want a manual session.
 
 ## GitHub Pages
 

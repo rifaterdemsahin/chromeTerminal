@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>chromeTerminal · Start at login</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="features-page">
+    <div class="chrome" style="height: auto; min-height: 100%">
+      <header class="titlebar">
+        <div class="traffic">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <div class="urlbar">
+          <span class="lock">🍎 Start at login</span>
+          <span>LaunchAgent · port 3847</span>
+        </div>
+        <a class="nav-link" href="index.html">🖥️ Terminal</a>
+        <a class="nav-link accent" href="features.html">✨ Features</a>
+      </header>
+      <article class="features-wrap">
+        <h1>🍎 Start chromeTerminal when macOS starts</h1>
+        <p>
+          After you sign in, a user <strong>LaunchAgent</strong> starts the keeper, and the
+          keeper keeps <a href="http://127.0.0.1:3847">http://127.0.0.1:3847</a> up.
+          This is <em>your</em> login session — not a root daemon — so the PTY can use your
+          <code>zsh</code>, nvm <code>node</code>, and <code>~/projects</code>.
+        </p>
+
+        <h2>What gets installed</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Piece</th>
+              <th>Where</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>LaunchAgent label</td>
+              <td><code>com.rifaterdemsahin.chrometerminal</code></td>
+            </tr>
+            <tr>
+              <td>Plist</td>
+              <td><code>~/Library/LaunchAgents/com.rifaterdemsahin.chrometerminal.plist</code></td>
+            </tr>
+            <tr>
+              <td>Command</td>
+              <td><code>/bin/zsh -lc 'cd …/chromeTerminal &amp;&amp; exec node scripts/keep-alive.js'</code></td>
+            </tr>
+            <tr>
+              <td>Port</td>
+              <td><code>127.0.0.1:3847</code></td>
+            </tr>
+            <tr>
+              <td>Stdout</td>
+              <td><code>~/Library/Logs/chromeTerminal.out.log</code></td>
+            </tr>
+            <tr>
+              <td>Stderr</td>
+              <td><code>~/Library/Logs/chromeTerminal.err.log</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          <code>RunAtLoad</code> starts it at login. <code>KeepAlive</code> means launchd
+          restarts the keeper if that process exits. The keeper then restarts
+          <code>server.js</code> if the process crashes or <code>/health</code> fails.
+        </p>
+
+        <h2>Install</h2>
+        <pre>cd ~/projects/chromeTerminal
+npm install
+npm run macos-install</pre>
+        <p>
+          That writes the plist, <code>bootout</code>s any old copy, then
+          <code>launchctl bootstrap gui/$(id -u)</code>. You do not need to reboot;
+          the agent starts immediately and will also start the next time you log in.
+        </p>
+
+        <h2>Check that it is running</h2>
+        <pre>curl -s http://127.0.0.1:3847/health
+launchctl print gui/$(id -u)/com.rifaterdemsahin.chrometerminal | head
+tail -f ~/Library/Logs/chromeTerminal.out.log</pre>
+        <p>Health should look like <code>{"ok":true,"port":3847,…}</code>. Open Chrome at <code>http://127.0.0.1:3847</code>.</p>
+
+        <h2>Uninstall</h2>
+        <pre>npm run macos-uninstall</pre>
+        <p>Stops the agent and deletes the plist. Port 3847 will go down unless you run <code>npm start</code> yourself.</p>
+
+        <h2>Login vs boot</h2>
+        <p>
+          This is <strong>not</strong> a LaunchDaemon at boot (before anyone logs in).
+          A daemon would run as root and could not safely attach to your interactive
+          shell. “When the Mac starts” here means: <strong>when you log in</strong>.
+        </p>
+
+        <h2>Do not run two keepers</h2>
+        <p>
+          If the LaunchAgent is loaded, you usually should not also run
+          <code>npm start</code> in a terminal. Two keepers will fight over port 3847
+          (the extra one will crash and back off). Use the agent for everyday use;
+          <code>npm run macos-uninstall</code> first if you want a manual
+          <code>npm start</code> or <code>npm run dev</code>.
+        </p>
+
+        <p>
+          <a href="index.html">← Terminal</a>
+          ·
+          <a href="features.html">Features</a>
+        </p>
+      </article>
+    </div>
+  </body>
+</html>
