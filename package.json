@@ -8,7 +8,9 @@
     "postinstall": "node scripts/fix-pty-helper.js",
     "start": "node scripts/keep-alive.js",
     "server": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "macos-install": "node scripts/install-launch-agent.js",
+    "macos-uninstall": "node scripts/install-launch-agent.js --uninstall"
   },
   "dependencies": {
     "express": "^4.21.2",

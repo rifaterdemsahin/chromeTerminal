@@ -22,9 +22,27 @@ Then open [http://127.0.0.1:3847](http://127.0.0.1:3847) in Chrome. Use **Guide*
 3. Polls `http://127.0.0.1:3847/health` every 4 seconds. If the port is down or health fails after a short start grace, it SIGTERMs the child and starts a new one.
 4. Uses backoff (0.8s → 15s) so a bind fight does not spin.
 
-Leave the keeper running in a terminal (or under launchd). Ctrl+C stops **both** the keeper and the server.
+Leave the keeper running in a terminal, **or install the macOS login agent** (below). Ctrl+C in a manual `npm start` stops **both** the keeper and the server.
 
 One-shot without restart: `npm run server`. File-watch dev: `npm run dev` (no keeper).
+
+## Start when macOS starts (login)
+
+This is a **LaunchAgent** (your user, at login), not a root LaunchDaemon. That is what you want: the PTY must run as you, with your `zsh`, `nvm` `node`, and `~/projects`.
+
+```bash
+npm run macos-install     # write ~/Library/LaunchAgents/com.rifaterdemsahin.chrometerminal.plist and load it
+npm run macos-uninstall   # bootout + delete the plist
+```
+
+The agent runs `/bin/zsh -lc` so nvm’s Node is on `PATH`, then `node scripts/keep-alive.js`. `RunAtLoad` + `KeepAlive` mean: start when you log in, and launchd restarts the keeper if it exits. The keeper still restarts `server.js` if port **3847** dies.
+
+Logs:
+
+- `~/Library/Logs/chromeTerminal.out.log`
+- `~/Library/Logs/chromeTerminal.err.log`
+
+Check: `launchctl print gui/$(id -u)/com.rifaterdemsahin.chrometerminal` and `curl -s http://127.0.0.1:3847/health`.
 
 ## GitHub Pages
 

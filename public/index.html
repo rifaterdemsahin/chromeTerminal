@@ -156,7 +156,10 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             port <code>3847</code> stops answering <code>/health</code>, it
             starts <code>server.js</code> again (backoff 0.8s–15s). Ctrl+C stops
             the keeper and the server. One-shot without restart:
-            <code>npm run server</code>.
+            <code>npm run server</code>. To start at macOS login:
+            <code>npm run macos-install</code> (LaunchAgent
+            <code>com.rifaterdemsahin.chrometerminal</code>). Remove with
+            <code>npm run macos-uninstall</code>.
           </p>
 
           <h2>Top menu</h2>
