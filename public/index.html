@@ -16,10 +16,12 @@
           <span class="dot green"></span>
         </div>
         <div class="urlbar">
-          <span class="lock" id="origin-label">chromeTerminal</span>
+          <span class="lock" id="origin-label">🔒 chromeTerminal</span>
           <span id="status">connecting…</span>
         </div>
-        <button id="reconnect" type="button">Reconnect</button>
+        <button id="btn-save" type="button" title="Download the current terminal buffer as a .txt file">💾 Save</button>
+        <button id="btn-new-tab" type="button" title="Open a new shell session in a new browser tab">🆕 New session</button>
+        <button id="reconnect" type="button">🔄 Reconnect</button>
       </header>
 
       <p class="blurb">
@@ -31,26 +33,33 @@
       <nav class="menu" aria-label="Terminal actions">
         <div class="menu-group">
           <span class="menu-label">Help</span>
-          <button type="button" id="btn-guide" class="accent">Guide</button>
+          <button type="button" id="btn-guide" class="accent">📖 Guide</button>
         </div>
         <div class="menu-group">
           <span class="menu-label">Go</span>
-          <button type="button" data-cd="$HOME">Home</button>
-          <button type="button" id="btn-projects" data-cd-projects>Projects</button>
+          <button type="button" data-cd="$HOME">🏠 Home</button>
+          <button type="button" id="btn-projects" data-cd-projects>📁 Projects</button>
         </div>
         <div class="menu-group">
           <span class="menu-label">Run</span>
-          <button type="button" class="accent" data-run="grok">grok</button>
-          <button type="button" class="accent" data-run="agy">agy</button>
+          <button type="button" class="accent" data-run="grok">🤖 grok</button>
+          <button type="button" class="accent" data-run="agy">✨ agy</button>
+          <button
+            type="button"
+            id="btn-ls5"
+            title="Newest 5 entries: ls -ant | head (skips the total line)"
+          >
+            📋 ls5
+          </button>
         </div>
         <div class="menu-group">
           <span class="menu-label">Keys</span>
-          <button type="button" data-key="tab" title="Tab">Tab</button>
-          <button type="button" data-key="shift-tab" title="Shift+Tab">Shift+Tab</button>
+          <button type="button" data-key="tab" title="Tab">⇥ Tab</button>
+          <button type="button" data-key="shift-tab" title="Shift+Tab">⇤ Shift+Tab</button>
         </div>
         <div class="menu-group grow">
           <label class="menu-label" for="project-filter">Projects</label>
-          <input id="project-filter" type="search" placeholder="Filter projects…" autocomplete="off" />
+          <input id="project-filter" type="search" placeholder="🔍 Filter projects…" autocomplete="off" />
         </div>
       </nav>
 
@@ -62,7 +71,7 @@
     <aside id="guide" class="guide" hidden>
       <div class="guide-panel" role="dialog" aria-labelledby="guide-title">
         <div class="guide-head">
-          <h1 id="guide-title">chromeTerminal guide</h1>
+          <h1 id="guide-title">📖 chromeTerminal guide</h1>
           <button type="button" id="guide-close">Close</button>
         </div>
         <div class="guide-body">
@@ -98,11 +107,14 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
 
           <h2>Top menu</h2>
           <ul>
-            <li><strong>Guide</strong> — this panel.</li>
-            <li><strong>Home / Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>.</li>
+            <li><strong>📖 Guide</strong> — this panel.</li>
+            <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>.</li>
             <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only).</li>
-            <li><strong>grok / agy</strong> — type that command and Enter in the live shell.</li>
-            <li><strong>Tab / Shift+Tab</strong> — send those keys (handy in grok/agy pickers).</li>
+            <li><strong>🤖 grok / ✨ agy</strong> — type that command and Enter in the live shell.</li>
+            <li><strong>📋 ls5</strong> — newest 5 directory entries (<code>ls -ant</code>, skip the total line, first 5).</li>
+            <li><strong>💾 Save</strong> — download the visible terminal buffer as a <code>.txt</code> file.</li>
+            <li><strong>⇥ Tab / ⇤ Shift+Tab</strong> — send those keys (handy in grok/agy pickers).</li>
+            <li><strong>Ctrl+C, Ctrl+C</strong> — two interrupts within 800ms disconnect this session (get out). A single Ctrl+C still goes to the shell.</li>
           </ul>
 
           <h2>Why Pages is not a remote Mac</h2>

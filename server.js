@@ -59,6 +59,8 @@ app.get("/api/projects", (req, res) => {
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/pty" });
+const sessions = new Map();
+const SESSION_TTL_MS = 30 * 60 * 1000;
 
 function authorized(req) {
   if (!TOKEN) return true;
@@ -70,25 +72,90 @@ function authorized(req) {
   }
 }
 
+function spawnSession() {
+  const id = crypto.randomUUID();
+  const ptyProcess = pty.spawn(SHELL, ["-l"], {
+    name: "xterm-256color",
+    cols: 120,
+    rows: 36,
+    cwd: os.homedir(),
+    env: {
+      ...process.env,
+      TERM: "xterm-256color",
+      COLORTERM: "truecolor",
+    },
+  });
+
+  const session = { id, pty: ptyProcess, ws: null, killTimer: null };
+  ptyProcess.onData((data) => {
+    const live = session.ws;
+    if (live && live.readyState === live.OPEN) {
+      live.send(JSON.stringify({ type: "output", data }));
+    }
+  });
+  ptyProcess.onExit(({ exitCode, signal }) => {
+    const live = session.ws;
+    sessions.delete(id);
+    if (session.killTimer) clearTimeout(session.killTimer);
+    if (live && live.readyState === live.OPEN) {
+      live.send(JSON.stringify({ type: "exit", exitCode, signal }));
+      live.close();
+    }
+  });
+  sessions.set(id, session);
+  return session;
+}
+
+function attachSocket(session, ws) {
+  if (session.killTimer) {
+    clearTimeout(session.killTimer);
+    session.killTimer = null;
+  }
+  if (session.ws && session.ws !== ws) {
+    try {
+      session.ws.close();
+    } catch {
+      // replaced
+    }
+  }
+  session.ws = ws;
+  if (ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify({ type: "session", id: session.id }));
+  }
+}
+
+function parkSession(session) {
+  session.ws = null;
+  if (session.killTimer) clearTimeout(session.killTimer);
+  session.killTimer = setTimeout(() => {
+    sessions.delete(session.id);
+    try {
+      session.pty.kill();
+    } catch {
+      // already gone
+    }
+  }, SESSION_TTL_MS);
+}
+
 wss.on("connection", (ws, req) => {
   if (!authorized(req)) {
     ws.close(4401, "unauthorized");
     return;
   }
 
-  let ptyProcess;
+  let url;
   try {
-    ptyProcess = pty.spawn(SHELL, ["-l"], {
-      name: "xterm-256color",
-      cols: 120,
-      rows: 36,
-      cwd: os.homedir(),
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-        COLORTERM: "truecolor",
-      },
-    });
+    url = new URL(req.url, `http://${req.headers.host}`);
+  } catch {
+    ws.close();
+    return;
+  }
+
+  const resumeId = url.searchParams.get("session");
+  let session = resumeId ? sessions.get(resumeId) : null;
+
+  try {
+    if (!session) session = spawnSession();
   } catch (err) {
     const message = `failed to start shell: ${err.message}\r\n`;
     if (ws.readyState === ws.OPEN) {
@@ -99,22 +166,7 @@ wss.on("connection", (ws, req) => {
     return;
   }
 
-  ptyProcess.onData((data) => {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: "output", data }));
-  });
-
-  ptyProcess.onExit(({ exitCode, signal }) => {
-    if (ws.readyState === ws.OPEN) {
-      ws.send(
-        JSON.stringify({
-          type: "exit",
-          exitCode,
-          signal,
-        })
-      );
-      ws.close();
-    }
-  });
+  attachSocket(session, ws);
 
   ws.on("message", (raw) => {
     let msg;
@@ -124,21 +176,22 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
+    if (msg.type === "ping") {
+      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: "pong" }));
+      return;
+    }
+
     if (msg.type === "input" && typeof msg.data === "string") {
-      ptyProcess.write(msg.data);
+      session.pty.write(msg.data);
     } else if (msg.type === "resize") {
-      const cols = Number(msg.cols) || 80;
-      const rows = Number(msg.rows) || 24;
-      ptyProcess.resize(Math.max(2, cols), Math.max(1, rows));
+      const cols = Number(msg.cols);
+      const rows = Number(msg.rows);
+      if (cols >= 20 && rows >= 5) session.pty.resize(cols, rows);
     }
   });
 
   ws.on("close", () => {
-    try {
-      ptyProcess.kill();
-    } catch {
-      // already gone
-    }
+    if (session.ws === ws) parkSession(session);
   });
 });
 
