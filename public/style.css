@@ -92,12 +92,26 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 12px;
   color: var(--muted);
+  min-width: 0;
+}
+
+.pwd {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .lock {

@@ -1,5 +1,6 @@
 const statusEl = document.getElementById("status");
 const originLabel = document.getElementById("origin-label");
+const pwdEl = document.getElementById("pwd-label");
 const termHost = document.getElementById("terminal");
 const reconnectBtn = document.getElementById("reconnect");
 const saveBtn = document.getElementById("btn-save");
@@ -412,6 +413,23 @@ function sendCommand(command) {
   sendInput(`${command}\n`);
 }
 
+function prettyPath(abs, home) {
+  if (!abs) return "~";
+  const base = home || catalog.home;
+  if (base && abs === base) return "~";
+  if (base && abs.startsWith(base + "/")) return "~" + abs.slice(base.length);
+  return abs;
+}
+
+function applyCwd(abs, home) {
+  if (home) catalog.home = home;
+  const pretty = prettyPath(abs, catalog.home);
+  pwdEl.textContent = pretty;
+  pwdEl.title = abs || pretty;
+  const base = (abs || pretty).replace(/\/$/, "").split("/").filter(Boolean).pop() || pretty;
+  setWatermark(pretty.length > 36 ? `~/${base}` : pretty, false);
+}
+
 function setWatermark(text, persist = true) {
   const label = String(text || "").trim();
   watermarkEl.textContent = label;
@@ -620,6 +638,10 @@ function connect(opts = {}) {
   socket.addEventListener("message", (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === "session" && msg.id) sessionStorage.setItem(SESSION_KEY, msg.id);
+    if (msg.type === "cwd") {
+      applyCwd(msg.path, msg.home);
+      return;
+    }
     if (msg.type === "pong") return;
     if (msg.type === "output") {
       term.write(msg.data);

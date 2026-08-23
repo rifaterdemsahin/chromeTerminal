@@ -1,8 +1,12 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+
+const execFileAsync = promisify(execFile);
 import express from "express";
 import { WebSocketServer } from "ws";
 import pty from "node-pty";
@@ -68,6 +72,58 @@ const wss = new WebSocketServer({ server, path: "/pty" });
 const sessions = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
+async function readCwd(pid) {
+  if (!pid) return "";
+  if (process.platform === "darwin") {
+    const { stdout } = await execFileAsync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn", "-w"], {
+      timeout: 1200,
+    });
+    const line = stdout.split("\n").find((row) => row.startsWith("n"));
+    return line ? line.slice(1) : "";
+  }
+  try {
+    return fs.readlinkSync(`/proc/${pid}/cwd`);
+  } catch {
+    return "";
+  }
+}
+
+function emitCwd(session) {
+  const live = session.ws;
+  if (!live || live.readyState !== live.OPEN) return;
+  live.send(
+    JSON.stringify({
+      type: "cwd",
+      path: session.lastCwd || "",
+      home: os.homedir(),
+    })
+  );
+}
+
+function startCwdWatch(session) {
+  if (session.cwdTimer) return;
+  const tick = async () => {
+    try {
+      const cwd = await readCwd(session.pty?.pid);
+      if (cwd && cwd !== session.lastCwd) {
+        session.lastCwd = cwd;
+        emitCwd(session);
+      }
+    } catch {
+      // lsof miss
+    }
+  };
+  tick();
+  session.cwdTimer = setInterval(tick, 1200);
+}
+
+function stopCwdWatch(session) {
+  if (session.cwdTimer) {
+    clearInterval(session.cwdTimer);
+    session.cwdTimer = null;
+  }
+}
+
 function authorized(req) {
   if (!TOKEN) return true;
   try {
@@ -92,7 +148,14 @@ function spawnSession() {
     },
   });
 
-  const session = { id, pty: ptyProcess, ws: null, killTimer: null };
+  const session = {
+    id,
+    pty: ptyProcess,
+    ws: null,
+    killTimer: null,
+    cwdTimer: null,
+    lastCwd: os.homedir(),
+  };
   ptyProcess.onData((data) => {
     const live = session.ws;
     if (live && live.readyState === live.OPEN) {
@@ -102,6 +165,7 @@ function spawnSession() {
   ptyProcess.onExit(({ exitCode, signal }) => {
     const live = session.ws;
     sessions.delete(id);
+    stopCwdWatch(session);
     if (session.killTimer) clearTimeout(session.killTimer);
     if (live && live.readyState === live.OPEN) {
       live.send(JSON.stringify({ type: "exit", exitCode, signal }));
@@ -126,11 +190,14 @@ function attachSocket(session, ws) {
   }
   session.ws = ws;
   if (ws.readyState === ws.OPEN) {
-    ws.send(JSON.stringify({ type: "session", id: session.id }));
+    ws.send(JSON.stringify({ type: "session", id: session.id, home: os.homedir() }));
+    emitCwd(session);
   }
+  startCwdWatch(session);
 }
 
 function parkSession(session) {
+  stopCwdWatch(session);
   session.ws = null;
   if (session.killTimer) clearTimeout(session.killTimer);
   session.killTimer = setTimeout(() => {
