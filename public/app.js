@@ -672,6 +672,13 @@ document.querySelectorAll("[data-key]").forEach((btn) => {
   });
 });
 
+document.querySelectorAll("[data-choice]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const n = btn.getAttribute("data-choice");
+    if (n) sendInput(`${n}\n`);
+  });
+});
+
 projectFilter.addEventListener("input", renderProjects);
 document.getElementById("btn-sort-name").addEventListener("click", () => setProjectSort("name"));
 document.getElementById("btn-sort-latest").addEventListener("click", () => setProjectSort("latest"));
