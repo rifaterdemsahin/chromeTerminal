@@ -31,6 +31,32 @@ body {
   height: 100%;
 }
 
+.chrome:fullscreen {
+  background: var(--page);
+  height: 100%;
+}
+
+[data-panel].collapsed {
+  display: none !important;
+}
+
+.panel-dock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--chrome);
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-dock button.active {
+  background: var(--accent);
+  color: var(--page);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 .titlebar {
   display: flex;
   align-items: center;

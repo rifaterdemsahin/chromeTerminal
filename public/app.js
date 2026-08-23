@@ -352,6 +352,8 @@ function renderThemes() {
 
 const SESSION_KEY = "chromeTerminal.session";
 const WATERMARK_KEY = "chromeTerminal.watermark";
+const PANELS_KEY = "chromeTerminal.panels";
+const PANEL_IDS = ["blurb", "menu", "theme", "badge", "projects"];
 const SORT_KEY = "chromeTerminal.projectSort";
 let projectSort = localStorage.getItem(SORT_KEY) === "latest" ? "latest" : "name";
 
@@ -803,12 +805,93 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !guideEl.hidden) closeGuide();
 });
 
+function loadPanelState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PANELS_KEY) || "{}");
+    return Object.fromEntries(PANEL_IDS.map((id) => [id, raw[id] !== false]));
+  } catch {
+    return Object.fromEntries(PANEL_IDS.map((id) => [id, true]));
+  }
+}
+
+function savePanelState(state) {
+  localStorage.setItem(PANELS_KEY, JSON.stringify(state));
+}
+
+function applyPanelState(state) {
+  for (const id of PANEL_IDS) {
+    const el = document.querySelector(`[data-panel="${id}"]`);
+    const on = state[id] !== false;
+    if (el) el.classList.toggle("collapsed", !on);
+    document.querySelectorAll(`[data-panel-toggle="${id}"]`).forEach((btn) => {
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  fit();
+}
+
+function togglePanel(id) {
+  const state = loadPanelState();
+  state[id] = !state[id];
+  savePanelState(state);
+  applyPanelState(state);
+}
+
+function setAllPanels(on) {
+  const state = Object.fromEntries(PANEL_IDS.map((id) => [id, on]));
+  savePanelState(state);
+  applyPanelState(state);
+}
+
+function isFullscreen() {
+  return Boolean(document.fullscreenElement);
+}
+
+async function toggleFullscreen() {
+  const root = document.querySelector(".chrome");
+  try {
+    if (isFullscreen()) await document.exitFullscreen();
+    else await root.requestFullscreen();
+  } catch (err) {
+    setStatus("🔴 fullscreen: " + err.message);
+  }
+}
+
+function syncFullscreenButton() {
+  const btn = document.getElementById("btn-fullscreen");
+  if (!btn) return;
+  btn.textContent = isFullscreen() ? "⛶ Exit full" : "⛶ Fullscreen";
+}
+
+document.getElementById("panel-dock").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-panel-toggle]");
+  if (!btn) return;
+  togglePanel(btn.getAttribute("data-panel-toggle"));
+});
+
+document.getElementById("btn-focus").addEventListener("click", () => {
+  const anyOpen = PANEL_IDS.some((id) => loadPanelState()[id]);
+  setAllPanels(!anyOpen);
+});
+
+document.getElementById("btn-fullscreen").addEventListener("click", () => {
+  toggleFullscreen();
+});
+
+document.addEventListener("fullscreenchange", () => {
+  syncFullscreenButton();
+  fit();
+});
+
 window.addEventListener("load", () => {
   originLabel.textContent = isLocal ? "🔒 localhost" : "📄 GitHub Pages";
   renderThemes();
   applyTheme(localStorage.getItem(THEME_KEY) || "night");
   setProjectSort(projectSort);
   setWatermark(sessionStorage.getItem(WATERMARK_KEY) || "", false);
+  applyPanelState(loadPanelState());
+  syncFullscreenButton();
   fit();
   connect();
   loadProjects().catch((err) => {

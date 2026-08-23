@@ -21,16 +21,27 @@
         </div>
         <button id="btn-save" type="button" title="Download the current terminal buffer as a .txt file">💾 Save</button>
         <button id="btn-new-tab" type="button" title="Open a new shell session in a new browser tab">🆕 New session</button>
+        <button id="btn-focus" type="button" title="Hide chrome panels so the terminal fills the window">🧘 Focus</button>
+        <button id="btn-fullscreen" type="button" title="Fill the whole screen">⛶ Fullscreen</button>
         <button id="reconnect" type="button">🔄 Reconnect</button>
       </header>
 
-      <p class="blurb">
+      <div class="panel-dock" id="panel-dock" role="toolbar" aria-label="Collapsible panels">
+        <span class="menu-label">Panels</span>
+        <button type="button" class="theme-btn" data-panel-toggle="blurb">📝 About</button>
+        <button type="button" class="theme-btn" data-panel-toggle="menu">🧭 Menu</button>
+        <button type="button" class="theme-btn" data-panel-toggle="theme">🎨 Theme</button>
+        <button type="button" class="theme-btn" data-panel-toggle="badge">🏷️ Badge</button>
+        <button type="button" class="theme-btn" data-panel-toggle="projects">📁 Projects</button>
+      </div>
+
+      <p class="blurb" data-panel="blurb">
         A browser window over your Mac shell. The live terminal only works on
         <strong>http://127.0.0.1:3847</strong> after <code>npm start</code>.
         GitHub Pages hosts this UI and the guide — it cannot spawn your zsh.
       </p>
 
-      <nav class="menu" aria-label="Terminal actions">
+      <nav class="menu" data-panel="menu" aria-label="Terminal actions">
         <div class="menu-group">
           <span class="menu-label">Help</span>
           <button type="button" id="btn-guide" class="accent">📖 Guide</button>
@@ -74,11 +85,11 @@
         </div>
       </nav>
 
-      <div class="theme-bar" id="theme-bar" role="group" aria-label="Color themes">
+      <div class="theme-bar" id="theme-bar" data-panel="theme" role="group" aria-label="Color themes">
         <span class="menu-label">🎨 Theme</span>
       </div>
 
-      <div class="theme-bar badge-bar">
+      <div class="theme-bar badge-bar" data-panel="badge">
         <label class="menu-label" for="watermark-input">🏷️ Badge</label>
         <input
           id="watermark-input"
@@ -107,7 +118,7 @@
         </button>
       </div>
 
-      <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
+      <div class="project-bar" id="project-bar" data-panel="projects" aria-label="Project shortcuts"></div>
 
       <div class="term-wrap">
         <div id="watermark" class="watermark" aria-hidden="true"></div>
@@ -168,6 +179,7 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>📖 Guide</strong> — this panel.</li>
             <li><strong>✨ Features</strong> — full list on <a href="features.html">features.html</a>.</li>
             <li><strong>🍎 Login</strong> — start at macOS login: <a href="macos-start.html">macos-start.html</a> (<code>npm run macos-install</code>).</li>
+            <li><strong>⛶ Fullscreen</strong> — fill the display (Esc to leave). <strong>🧘 Focus</strong> hides About/Menu/Theme/Badge/Projects so the terminal is large. Use the <strong>Panels</strong> row to collapse or restore each strip; that state is saved.</li>
             <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>.</li>
             <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only). <strong>🕒 Latest</strong> sorts by folder modified time; <strong>🔤 A–Z</strong> is name order.</li>
             <li><strong>🤖 grok / ✨ agy</strong> — type that command and Enter in the live shell.</li>
