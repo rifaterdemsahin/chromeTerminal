@@ -140,6 +140,27 @@ button.accent {
   color: var(--accent);
 }
 
+button.pick-1 {
+  color: #22c55e;
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+}
+button.pick-2 {
+  color: #eab308;
+  border-color: #eab308;
+  background: rgba(234, 179, 8, 0.12);
+}
+button.pick-3 {
+  color: #f97316;
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.12);
+}
+button.pick-4 {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
 button.theme-btn.active {
   background: var(--accent);
   color: var(--page);
