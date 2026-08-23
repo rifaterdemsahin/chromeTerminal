@@ -18,6 +18,7 @@ const DOUBLE_CTRL_C_MS = 800;
 const PUSH_OK = "CHROME_TERMINAL_PUSH_OK";
 const PUSH_FAIL = "CHROME_TERMINAL_PUSH_FAIL";
 const PUSH_WAIT_MS = 180000;
+const PUSH_LEAVE_DELAY_MS = 8000;
 
 const isLocal =
   location.hostname === "127.0.0.1" || location.hostname === "localhost";
@@ -575,13 +576,32 @@ function notePushOutput(chunk) {
   pushWatch.buf = (pushWatch.buf + stripAnsi(chunk)).slice(-8000);
   if (pushWatch.buf.includes(PUSH_OK)) {
     clearPushWatch();
-    disconnectSession("commit push completed — left");
+    scheduleLeaveAfterPush();
     return;
   }
   if (pushWatch.buf.includes(PUSH_FAIL)) {
     clearPushWatch();
     setStatus("🔴 commit/push failed · still connected");
   }
+}
+
+function scheduleLeaveAfterPush() {
+  const seconds = Math.round(PUSH_LEAVE_DELAY_MS / 1000);
+  let left = seconds;
+  setStatus(`🟢 pushed · leaving in ${left}s`);
+  term.write(`\r\n\x1b[32m✅ commit push completed — closing in ${left}s\x1b[0m\r\n`);
+  const tick = setInterval(() => {
+    left -= 1;
+    if (left <= 0) {
+      clearInterval(tick);
+      return;
+    }
+    setStatus(`🟢 pushed · leaving in ${left}s`);
+  }, 1000);
+  setTimeout(() => {
+    clearInterval(tick);
+    disconnectSession("commit push completed — left");
+  }, PUSH_LEAVE_DELAY_MS);
 }
 
 function startCommitPushLeave() {
