@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>chromeTerminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="chrome">
+      <header class="titlebar">
+        <div class="traffic">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <div class="urlbar">
+          <span class="lock">localhost</span>
+          <span id="status">connecting…</span>
+        </div>
+        <button id="reconnect" type="button">Reconnect</button>
+      </header>
+
+      <nav class="menu" aria-label="Terminal actions">
+        <div class="menu-group">
+          <span class="menu-label">Go</span>
+          <button type="button" data-cd="$HOME">Home</button>
+          <button type="button" id="btn-projects" data-cd-projects>Projects</button>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">Run</span>
+          <button type="button" class="accent" data-run="grok">grok</button>
+          <button type="button" class="accent" data-run="agy">agy</button>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">Keys</span>
+          <button type="button" data-key="tab" title="Tab">Tab</button>
+          <button type="button" data-key="shift-tab" title="Shift+Tab">Shift+Tab</button>
+        </div>
+        <div class="menu-group grow">
+          <label class="menu-label" for="project-filter">Projects</label>
+          <input id="project-filter" type="search" placeholder="Filter projects…" autocomplete="off" />
+        </div>
+      </nav>
+
+      <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
+
+      <main id="terminal"></main>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

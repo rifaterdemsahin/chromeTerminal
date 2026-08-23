@@ -1,0 +1,17 @@
+{
+  "name": "chrome-terminal",
+  "version": "1.0.0",
+  "description": "Web terminal that attaches to your local macOS shell",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/fix-pty-helper.js",
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  }
+}
