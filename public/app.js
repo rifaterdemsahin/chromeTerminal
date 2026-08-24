@@ -1,9 +1,11 @@
 const statusEl = document.getElementById("status");
 const originLabel = document.getElementById("origin-label");
 const pwdEl = document.getElementById("pwd-label");
+const sessionAgeEl = document.getElementById("session-age");
 const termHost = document.getElementById("terminal");
 const reconnectBtn = document.getElementById("reconnect");
 const saveBtn = document.getElementById("btn-save");
+const dictateBtn = document.getElementById("btn-dictate");
 const newTabBtn = document.getElementById("btn-new-tab");
 const projectBar = document.getElementById("project-bar");
 const projectFilter = document.getElementById("project-filter");
@@ -477,6 +479,7 @@ function renderThemes() {
 }
 
 const SESSION_KEY = "chromeTerminal.session";
+const SESSION_STARTED_KEY = "chromeTerminal.sessionStartedAt";
 const WATERMARK_KEY = "chromeTerminal.watermark";
 
 const PANELS_KEY = "chromeTerminal.panels";
@@ -494,9 +497,51 @@ let pingTimer = 0;
 let allowAutoResume = true;
 let resumeAttempts = 0;
 let pushWatch = null;
+let sessionStartedAt = Number(sessionStorage.getItem(SESSION_STARTED_KEY)) || 0;
+let sessionAgeTimer = 0;
 
 function setStatus(text) {
   statusEl.textContent = text;
+}
+
+function formatSessionAge(ms) {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  const hours = Math.floor(totalMin / 60);
+  const minutes = totalMin % 60;
+  return `⏱ ${hours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function renderSessionAge() {
+  if (!sessionAgeEl) return;
+  if (!sessionStartedAt) {
+    sessionAgeEl.textContent = "⏱ —";
+    sessionAgeEl.title = "How long this shell session has been on";
+    return;
+  }
+  const elapsed = Date.now() - sessionStartedAt;
+  sessionAgeEl.textContent = formatSessionAge(elapsed);
+  sessionAgeEl.title = `Session on since ${new Date(sessionStartedAt).toLocaleString()}`;
+}
+
+function startSessionAgeClock(startedAt) {
+  const ts = Number(startedAt) || 0;
+  if (ts) {
+    sessionStartedAt = ts;
+    sessionStorage.setItem(SESSION_STARTED_KEY, String(ts));
+  }
+  renderSessionAge();
+  if (sessionAgeTimer) return;
+  sessionAgeTimer = window.setInterval(renderSessionAge, 15000);
+}
+
+function clearSessionAge() {
+  sessionStartedAt = 0;
+  sessionStorage.removeItem(SESSION_STARTED_KEY);
+  if (sessionAgeTimer) {
+    clearInterval(sessionAgeTimer);
+    sessionAgeTimer = 0;
+  }
+  renderSessionAge();
 }
 
 function tokenFromUrl() {
@@ -524,6 +569,117 @@ function sendInput(data) {
   if (!connected) return;
   send({ type: "input", data });
   term.focus();
+}
+
+const SpeechRec =
+  window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let speechRec = null;
+let dictating = false;
+let dictateInterim = "";
+
+function focusTerminalCursor() {
+  term.focus();
+  term.scrollToBottom();
+  const ta = term.textarea;
+  if (!ta) return;
+  ta.focus({ preventScroll: true });
+  try {
+    const len = ta.value.length;
+    ta.setSelectionRange(len, len);
+  } catch {
+    /* xterm may keep the helper textarea empty */
+  }
+}
+
+function setDictateUi(on) {
+  dictating = on;
+  if (!dictateBtn) return;
+  dictateBtn.classList.toggle("dictating", on);
+  dictateBtn.textContent = on ? "🛑 Stop dictate" : "🎤 Dictate";
+  dictateBtn.setAttribute("aria-pressed", on ? "true" : "false");
+}
+
+function stopDictation() {
+  if (speechRec) {
+    try {
+      speechRec.stop();
+    } catch {
+      /* already stopped */
+    }
+  }
+  dictateInterim = "";
+  setDictateUi(false);
+  focusTerminalCursor();
+  setStatus(connected ? "🟢 connected" : statusEl.textContent);
+}
+
+function startDictation() {
+  focusTerminalCursor();
+  if (!connected) {
+    setStatus("🔴 connect first, then dictate");
+    return;
+  }
+  if (!SpeechRec) {
+    setStatus("🎤 cursor in shell — double-tap Fn to dictate");
+    return;
+  }
+  if (dictating) {
+    stopDictation();
+    return;
+  }
+
+  speechRec = new SpeechRec();
+  speechRec.continuous = true;
+  speechRec.interimResults = true;
+  speechRec.lang = navigator.language || "en-US";
+
+  speechRec.onstart = () => {
+    setDictateUi(true);
+    focusTerminalCursor();
+    setStatus("🎤 listening — speak, or double-tap Fn");
+  };
+
+  speechRec.onerror = (event) => {
+    if (event.error === "aborted" || event.error === "no-speech") return;
+    setStatus("🔴 dictate: " + event.error);
+  };
+
+  speechRec.onend = () => {
+    if (dictating) {
+      try {
+        speechRec.start();
+        return;
+      } catch {
+        /* fall through and stop */
+      }
+    }
+    stopDictation();
+  };
+
+  speechRec.onresult = (event) => {
+    let finalChunk = "";
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      const text = result[0].transcript;
+      if (result.isFinal) finalChunk += text;
+      else interim += text;
+    }
+    if (finalChunk) {
+      dictateInterim = "";
+      sendInput(finalChunk.replace(/\s+$/, "") + " ");
+      focusTerminalCursor();
+    } else {
+      dictateInterim = interim;
+    }
+  };
+
+  try {
+    speechRec.start();
+  } catch (err) {
+    setStatus("🔴 dictate: " + (err.message || err));
+    setDictateUi(false);
+  }
 }
 
 function shellQuote(value) {
@@ -751,7 +907,10 @@ function connect(opts = {}) {
     return;
   }
 
-  if (opts.reset) sessionStorage.removeItem(SESSION_KEY);
+  if (opts.reset) {
+    sessionStorage.removeItem(SESSION_KEY);
+    clearSessionAge();
+  }
 
   if (socket) {
     socket.onclose = null;
@@ -774,7 +933,10 @@ function connect(opts = {}) {
 
   socket.addEventListener("message", (event) => {
     const msg = JSON.parse(event.data);
-    if (msg.type === "session" && msg.id) sessionStorage.setItem(SESSION_KEY, msg.id);
+    if (msg.type === "session" && msg.id) {
+      sessionStorage.setItem(SESSION_KEY, msg.id);
+      startSessionAgeClock(msg.startedAt || Date.now());
+    }
     if (msg.type === "cwd") {
       applyCwd(msg.path, msg.home);
       return;
@@ -786,6 +948,7 @@ function connect(opts = {}) {
     }
     if (msg.type === "exit") {
       sessionStorage.removeItem(SESSION_KEY);
+      clearSessionAge();
       stopPing();
       term.write(`\r\n\x1b[33m👋 shell exited (${msg.exitCode ?? "?"})\x1b[0m\r\n`);
       setStatus("⚪ disconnected");
@@ -893,6 +1056,7 @@ function disconnectSession(reason) {
   allowAutoResume = false;
   stopPing();
   sessionStorage.removeItem(SESSION_KEY);
+  clearSessionAge();
   term.write(`\r\n\x1b[33m🚪 ${reason}\x1b[0m\r\n`);
   if (socket) {
     socket.onclose = null;
@@ -1031,12 +1195,103 @@ document.querySelectorAll("[data-key]").forEach((btn) => {
   });
 });
 
+let audioCtx = null;
+let pick1Streak = 0;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(ctx, { type, freq, freqTo, start, duration, gain }) {
+  const osc = ctx.createOscillator();
+  const amp = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, start);
+  if (freqTo) osc.frequency.exponentialRampToValueAtTime(freqTo, start + duration * 0.45);
+  amp.gain.setValueAtTime(0.0001, start);
+  amp.gain.exponentialRampToValueAtTime(gain, start + 0.015);
+  amp.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  osc.connect(amp);
+  amp.connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + duration + 0.02);
+}
+
+function playChaChing() {
+  try {
+    const ctx = getAudioCtx();
+    ctx.resume();
+    const t = ctx.currentTime;
+    playTone(ctx, { type: "triangle", freq: 880, freqTo: 1318.5, start: t, duration: 0.18, gain: 0.28 });
+    playTone(ctx, { type: "square", freq: 1174.7, freqTo: 1760, start: t + 0.09, duration: 0.28, gain: 0.16 });
+    playTone(ctx, { type: "sine", freq: 1975.5, freqTo: 2793.8, start: t + 0.16, duration: 0.42, gain: 0.22 });
+    playTone(ctx, { type: "sine", freq: 2349, freqTo: 3136, start: t + 0.28, duration: 0.35, gain: 0.12 });
+  } catch {
+    /* no audio */
+  }
+}
+
+function celebratePick1(btn) {
+  pick1Streak += 1;
+  playChaChing();
+  btn.classList.remove("chaching-pop");
+  void btn.offsetWidth;
+  btn.classList.add("chaching-pop");
+  window.setTimeout(() => btn.classList.remove("chaching-pop"), 560);
+
+  const layer = document.getElementById("chaching-fx");
+  if (!layer) return;
+  const rect = btn.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  layer.style.setProperty("--fx-x", `${x}px`);
+  layer.style.setProperty("--fx-y", `${y}px`);
+  layer.classList.remove("flash");
+  void layer.offsetWidth;
+  layer.classList.add("flash");
+  window.setTimeout(() => layer.classList.remove("flash"), 700);
+
+  const glyphs = ["💰", "🪙", "✨", "💵", "⭐"];
+  for (let i = 0; i < 12; i++) {
+    const coin = document.createElement("span");
+    coin.className = "chaching-coin";
+    coin.textContent = glyphs[i % glyphs.length];
+    const dx = (Math.random() - 0.5) * 220;
+    const dy = -80 - Math.random() * 180;
+    const spin = `${(Math.random() - 0.5) * 420}deg`;
+    coin.style.left = `${x - 11}px`;
+    coin.style.top = `${y - 11}px`;
+    coin.style.setProperty("--dx", `${dx}px`);
+    coin.style.setProperty("--dy", `${dy}px`);
+    coin.style.setProperty("--spin", spin);
+    coin.style.animationDuration = `${0.7 + Math.random() * 0.35}s`;
+    layer.append(coin);
+    coin.addEventListener("animationend", () => coin.remove());
+  }
+
+  const banner = document.createElement("div");
+  banner.className = "chaching-banner";
+  banner.textContent = pick1Streak > 1 ? `CHA-CHING ×${pick1Streak}` : "CHA-CHING!";
+  layer.append(banner);
+  banner.addEventListener("animationend", () => banner.remove());
+}
+
 document.querySelectorAll("[data-choice]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const n = btn.getAttribute("data-choice");
-    if (n) sendInput(`${n}\n`);
+    if (!n) return;
+    sendInput(`${n}\n`);
+    if (n === "1") celebratePick1(btn);
   });
 });
+
+if (dictateBtn) {
+  dictateBtn.addEventListener("click", () => {
+    if (dictating) stopDictation();
+    else startDictation();
+  });
+}
 
 document.getElementById("btn-commit-push-leave").addEventListener("click", startCommitPushLeave);
 document.getElementById("commit-msg").addEventListener("keydown", (event) => {
@@ -1086,6 +1341,10 @@ document.getElementById("prompt-add").addEventListener("submit", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (dictating) {
+    stopDictation();
+    return;
+  }
   if (!promptsEl.hidden) {
     closePrompts();
     return;
@@ -1184,6 +1443,8 @@ window.addEventListener("load", () => {
   applyPanelState(loadPanelState());
   loadBuiltinPrompts();
   syncFullscreenButton();
+  renderSessionAge();
+  if (sessionStartedAt) startSessionAgeClock(sessionStartedAt);
   fit();
   connect();
   loadProjects().catch((err) => {

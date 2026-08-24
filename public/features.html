@@ -36,6 +36,7 @@
           <li>xterm.js in the page, Node <code>node-pty</code> + WebSocket on localhost.</li>
           <li>Login <code>zsh</code> (or <code>$SHELL</code>), cwd starts in your home directory.</li>
           <li>Each browser tab is its own session. <strong>🆕 New session</strong> opens another tab.</li>
+          <li><strong>⏱ Session time</strong> — title bar shows hours and minutes this shell has been on, counted from when the PTY started (survives reconnects until the session is reset or the shell exits).</li>
           <li>Sessions park for ~30 minutes if you leave the tab, then resume when you come back.</li>
           <li>Hidden-tab resizes are ignored so the PTY does not collapse to a tiny size.</li>
           <li><strong>⛶ Fullscreen</strong> — the chrome fills the display (<code>Esc</code> to leave). <strong>📦 Collapse all</strong> / <strong>📂 Expand all</strong> hide or show About, Menu, Theme, Badge, and Projects. <strong>🧘 Focus</strong> toggles them. The <strong>Panels</strong> row toggles each strip; open/closed is saved in this browser.</li>
@@ -59,6 +60,7 @@
           <li><strong>1️⃣ 2️⃣ 3️⃣ 4️⃣</strong> — send that number and Enter (for “pick 1–4” prompts).</li>
           <li><strong>⇥ Tab</strong> / <strong>⇤ Shift+Tab</strong> — send those keys into the PTY.</li>
           <li><strong>💾 Save</strong> — download the terminal buffer as <code>.txt</code>.</li>
+          <li><strong>🎤 Dictate</strong> — title bar. Focuses the xterm cursor, then Chrome speech recognition types into the live shell. Click again to stop. Once focused, double-tap <strong>Fn</strong> (Globe) also starts macOS Dictation.</li>
           <li><strong>📤 Commit · push · leave</strong> — <code>git add -A</code>, commit with your message, <code>git push origin HEAD</code>. On success it waits 8 seconds so you can read the log, then the session closes. On failure it stays open. Run this at a shell prompt, not inside grok/agy.</li>
         </ul>
 

@@ -198,6 +198,7 @@ function spawnSession() {
     killTimer: null,
     cwdTimer: null,
     lastCwd: os.homedir(),
+    startedAt: Date.now(),
   };
   ptyProcess.onData((data) => {
     const live = session.ws;
@@ -232,8 +233,16 @@ function attachSocket(session, ws) {
     }
   }
   session.ws = ws;
+  if (!session.startedAt) session.startedAt = Date.now();
   if (ws.readyState === ws.OPEN) {
-    ws.send(JSON.stringify({ type: "session", id: session.id, home: os.homedir() }));
+    ws.send(
+      JSON.stringify({
+        type: "session",
+        id: session.id,
+        home: os.homedir(),
+        startedAt: session.startedAt,
+      })
+    );
     emitCwd(session);
   }
   startCwdWatch(session);
