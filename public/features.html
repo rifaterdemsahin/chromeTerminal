@@ -64,6 +64,16 @@
           <li><strong>📤 Commit · push · leave</strong> — <code>git add -A</code>, commit with your message, <code>git push origin HEAD</code>. On success it waits 8 seconds so you can read the log, then the session closes. On failure it stays open. Run this at a shell prompt, not inside grok/agy.</li>
         </ul>
 
+        <h2>⚡ Connection Speed &amp; Quality Checker</h2>
+        <ul>
+          <li><strong>Live Status Badge:</strong> Pill in the URL bar showing live ping (ms), DNS lookup latency, download speed (Mbps), and connection health (🟢 Good / 🟡 Fair / 🔴 Poor).</li>
+          <li><strong>Detail Modal Popup:</strong> Click the badge or the <strong>⚡ Speed</strong> button to pop up the full diagnostic suite.</li>
+          <li><strong>📶 Ping &amp; Latency:</strong> Real-time RTT to local shell server, Cloudflare edge, and Google DNS, including jitter and min/max/avg latency tracking.</li>
+          <li><strong>🌐 DNS Resolution Quality:</strong> Measures DNS resolution speed and resolved IP addresses across top hosts (Google, Cloudflare, GitHub, Apple, Wikipedia) via native system resolver (Node) and DoH gateways.</li>
+          <li><strong>🚀 Speed Benchmark:</strong> Built-in throughput benchmark measuring download speed in Mbps with live progress meter and transfer statistics.</li>
+          <li><strong>📋 Diagnostic Report:</strong> One-click copy of the full network diagnostic metrics for troubleshooting.</li>
+        </ul>
+
         <h2>🎨 Themes</h2>
         <p>Palettes apply to the chrome and to xterm ANSI colors. Saved in this browser.</p>
         <table>

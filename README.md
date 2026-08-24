@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-Then open [http://127.0.0.1:3847](http://127.0.0.1:3847) in Chrome. Use **Guide** in the top menu, or the full list at [features.html](https://rifaterdemsahin.github.io/chromeTerminal/features.html).
+Then open [http://127.0.0.1:3847](http://127.0.0.1:3847) in Chrome. Use **Guide** in the top menu, or the full list at [features.html](https://rifaterdemsahin.github.io/chromeTerminal/features.html). Includes real-time connection speed & quality diagnostic (ping latency, DNS resolution quality, and download throughput).
 
 ## Auto-restart (port 3847)
 

@@ -20,6 +20,48 @@ const themeBar = document.getElementById("theme-bar");
 const watermarkEl = document.getElementById("watermark");
 const watermarkInput = document.getElementById("watermark-input");
 
+const netQualityBadge = document.getElementById("net-quality-badge");
+const btnNetModal = document.getElementById("btn-net-modal");
+const netModalEl = document.getElementById("net-modal");
+const netModalClose = document.getElementById("net-modal-close");
+
+const netIndicatorDot = document.getElementById("net-indicator-dot");
+const netBadgePing = document.getElementById("net-badge-ping");
+const netBadgeDns = document.getElementById("net-badge-dns");
+const netBadgeSpeed = document.getElementById("net-badge-speed");
+const netBadgeLabel = document.getElementById("net-badge-label");
+
+const netModalOverallPill = document.getElementById("net-modal-overall-pill");
+const netCardPing = document.getElementById("net-card-ping");
+const netCardPingSub = document.getElementById("net-card-ping-sub");
+const netCardDns = document.getElementById("net-card-dns");
+const netCardDnsSub = document.getElementById("net-card-dns-sub");
+const netCardSpeed = document.getElementById("net-card-speed");
+const netCardSpeedSub = document.getElementById("net-card-speed-sub");
+const netCardQuality = document.getElementById("net-card-quality");
+const netCardQualitySub = document.getElementById("net-card-quality-sub");
+
+const btnRunSpeedTest = document.getElementById("btn-run-speed-test");
+const btnRetestAll = document.getElementById("btn-retest-all");
+const netSpeedBarFill = document.getElementById("net-speed-bar-fill");
+const netSpeedProgressText = document.getElementById("net-speed-progress-text");
+const netSpeedTransferredText = document.getElementById("net-speed-transferred-text");
+
+const netPingGrade = document.getElementById("net-ping-grade");
+const pingRowLocal = document.getElementById("ping-row-local");
+const pingTagLocal = document.getElementById("ping-tag-local");
+const pingRowCf = document.getElementById("ping-row-cf");
+const pingTagCf = document.getElementById("ping-tag-cf");
+const pingRowGoogle = document.getElementById("ping-row-google");
+const pingTagGoogle = document.getElementById("ping-tag-google");
+
+const netDnsGrade = document.getElementById("net-dns-grade");
+const netDnsTableBody = document.getElementById("net-dns-table-body");
+
+const netDiagConnectionType = document.getElementById("net-diag-connection-type");
+const netDiagTimestamp = document.getElementById("net-diag-timestamp");
+const btnCopyNetDiag = document.getElementById("btn-copy-net-diag");
+
 const LS5_CMD = "ls -ant | awk 'NR==1 || n<5 { if (NR>1) n++; print }'";
 const DOUBLE_CTRL_C_MS = 800;
 const PUSH_OK = "CHROME_TERMINAL_PUSH_OK";
@@ -484,7 +526,8 @@ const WATERMARK_KEY = "chromeTerminal.watermark";
 
 const PANELS_KEY = "chromeTerminal.panels";
 const CUSTOM_PROMPTS_KEY = "chromeTerminal.customPrompts";
-const PANEL_IDS = ["blurb", "menu", "theme", "badge", "projects"];
+const PINNED_PROJECTS_KEY = "chromeTerminal.pinnedProjects";
+const PANEL_IDS = ["menu", "projects", "badge", "theme", "blurb"];
 const SORT_KEY = "chromeTerminal.projectSort";
 let projectSort = localStorage.getItem(SORT_KEY) === "latest" ? "latest" : "name";
 
@@ -788,6 +831,481 @@ function openGuide() {
   guideEl.hidden = false;
 }
 
+const netState = {
+  pingMs: null,
+  pingAvg: null,
+  pingMin: null,
+  pingMax: null,
+  jitterMs: null,
+  pingHistory: [],
+  cfPingMs: null,
+  googlePingMs: null,
+  dnsAvgMs: null,
+  dnsResults: [],
+  dnsServers: [],
+  speedMbps: null,
+  lastTestedAt: null,
+  isTestingSpeed: false,
+  isTestingAll: false,
+};
+
+function openNetModal() {
+  if (netModalEl) netModalEl.hidden = false;
+  if (!netState.lastTestedAt || Date.now() - netState.lastTestedAt > 25000) {
+    runAllNetworkTests();
+  }
+}
+
+function closeNetModal() {
+  if (netModalEl) netModalEl.hidden = true;
+  if (isLocal) term.focus();
+}
+
+async function measureEndpointPing(url, timeoutMs = 4000) {
+  const start = performance.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+      mode: url.startsWith("http") && !url.includes(location.host) ? "cors" : "same-origin",
+    });
+    clearTimeout(timer);
+    const duration = Math.round(performance.now() - start);
+    return { ok: res.ok || res.type === "opaque", duration };
+  } catch (err) {
+    clearTimeout(timer);
+    const duration = Math.round(performance.now() - start);
+    if (err.name !== "AbortError" && duration < timeoutMs) {
+      return { ok: true, duration };
+    }
+    return { ok: false, duration: null, error: err.message };
+  }
+}
+
+async function checkPing() {
+  const token = tokenFromUrl();
+  const q = token ? `?token=${encodeURIComponent(token)}&_=${Date.now()}` : `?_=${Date.now()}`;
+
+  let localResult;
+  if (isLocal) {
+    localResult = await measureEndpointPing(`/api/net-ping${q}`);
+  } else {
+    localResult = await measureEndpointPing(`index.html?_=${Date.now()}`);
+  }
+
+  if (localResult.ok && localResult.duration !== null) {
+    netState.pingMs = localResult.duration;
+    netState.pingHistory.push(localResult.duration);
+    if (netState.pingHistory.length > 20) netState.pingHistory.shift();
+
+    const sum = netState.pingHistory.reduce((a, b) => a + b, 0);
+    netState.pingAvg = Math.round(sum / netState.pingHistory.length);
+    netState.pingMin = Math.min(...netState.pingHistory);
+    netState.pingMax = Math.max(...netState.pingHistory);
+
+    if (netState.pingHistory.length > 1) {
+      let diffSum = 0;
+      for (let i = 1; i < netState.pingHistory.length; i++) {
+        diffSum += Math.abs(netState.pingHistory[i] - netState.pingHistory[i - 1]);
+      }
+      netState.jitterMs = Math.round(diffSum / (netState.pingHistory.length - 1));
+    } else {
+      netState.jitterMs = 0;
+    }
+  }
+
+  measureEndpointPing("https://cloudflare.com/cdn-cgi/trace")
+    .then((res) => {
+      if (res.ok) netState.cfPingMs = res.duration;
+      updateNetUI();
+    })
+    .catch(() => {});
+
+  measureEndpointPing("https://dns.google/resolve?name=google.com&type=A")
+    .then((res) => {
+      if (res.ok) netState.googlePingMs = res.duration;
+      updateNetUI();
+    })
+    .catch(() => {});
+
+  updateNetUI();
+}
+
+async function checkDns() {
+  const token = tokenFromUrl();
+  const q = token ? `?token=${encodeURIComponent(token)}&_=${Date.now()}` : `?_=${Date.now()}`;
+
+  if (isLocal) {
+    try {
+      const res = await fetch(`/api/net-dns${q}`);
+      if (res.ok) {
+        const data = await res.json();
+        netState.dnsAvgMs = data.avgDnsMs;
+        netState.dnsResults = data.results || [];
+        netState.dnsServers = data.servers || [];
+        updateNetUI();
+        return;
+      }
+    } catch {
+      // fallback to DoH
+    }
+  }
+
+  const testDomains = [
+    { host: "google.com", label: "Google", resolver: "Cloudflare 1.1.1.1 DoH" },
+    { host: "cloudflare.com", label: "Cloudflare", resolver: "Cloudflare 1.1.1.1 DoH" },
+    { host: "github.com", label: "GitHub", resolver: "Google 8.8.8.8 DoH" },
+    { host: "apple.com", label: "Apple", resolver: "Google 8.8.8.8 DoH" },
+    { host: "wikipedia.org", label: "Wikipedia", resolver: "Cloudflare 1.1.1.1 DoH" },
+  ];
+
+  const results = await Promise.all(
+    testDomains.map(async (item) => {
+      const start = performance.now();
+      try {
+        let apiUrl = "";
+        if (item.resolver.startsWith("Cloudflare")) {
+          apiUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(item.host)}&type=A`;
+        } else {
+          apiUrl = `https://dns.google/resolve?name=${encodeURIComponent(item.host)}&type=A`;
+        }
+        const res = await fetch(apiUrl, {
+          headers: { Accept: "application/dns-json" },
+          cache: "no-store",
+        });
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const addresses = (data.Answer || [])
+          .filter((ans) => ans.type === 1)
+          .map((ans) => ans.data);
+        return {
+          host: item.host,
+          label: item.label,
+          resolver: item.resolver,
+          ok: true,
+          durationMs,
+          addresses: addresses.length ? addresses.slice(0, 4) : ["Resolved"],
+        };
+      } catch (err) {
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        return {
+          host: item.host,
+          label: item.label,
+          resolver: item.resolver,
+          ok: false,
+          durationMs,
+          error: err.message,
+        };
+      }
+    })
+  );
+
+  const successful = results.filter((r) => r.ok);
+  netState.dnsAvgMs =
+    successful.length > 0
+      ? Math.round(
+          (successful.reduce((sum, r) => sum + r.durationMs, 0) / successful.length) * 10
+        ) / 10
+      : null;
+  netState.dnsResults = results;
+  updateNetUI();
+}
+
+async function runSpeedTest() {
+  if (netState.isTestingSpeed) return;
+  netState.isTestingSpeed = true;
+  if (netIndicatorDot) netIndicatorDot.className = "net-indicator-dot net-testing";
+  if (netSpeedProgressText) netSpeedProgressText.textContent = "Testing bandwidth throughput…";
+  if (btnRunSpeedTest) {
+    btnRunSpeedTest.disabled = true;
+    btnRunSpeedTest.textContent = "⏳ Testing…";
+  }
+
+  const token = tokenFromUrl();
+  const mbToDownload = isLocal ? 3 : 1;
+  const q = token
+    ? `?token=${encodeURIComponent(token)}&mb=${mbToDownload}&_=${Date.now()}`
+    : `?mb=${mbToDownload}&_=${Date.now()}`;
+
+  const speedUrl = isLocal ? `/api/net-speed${q}` : `style.css?_=${Date.now()}`;
+
+  try {
+    let transferredBytes = 0;
+    const startTime = performance.now();
+    const res = await fetch(speedUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const contentLength = Number(res.headers.get("Content-Length")) || mbToDownload * 1024 * 1024;
+    const reader = res.body ? res.body.getReader() : null;
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        transferredBytes += value.byteLength;
+        const progress = Math.min(Math.round((transferredBytes / contentLength) * 100), 100);
+        if (netSpeedBarFill) netSpeedBarFill.style.width = `${progress}%`;
+        if (netSpeedTransferredText) {
+          netSpeedTransferredText.textContent = `${(transferredBytes / (1024 * 1024)).toFixed(1)} / ${(contentLength / (1024 * 1024)).toFixed(1)} MB`;
+        }
+        const elapsedSec = (performance.now() - startTime) / 1000;
+        if (elapsedSec > 0.05) {
+          const currentMbps = Math.round(((transferredBytes * 8) / (elapsedSec * 1000 * 1000)) * 10) / 10;
+          if (netSpeedProgressText) netSpeedProgressText.textContent = `Streaming: ${currentMbps} Mbps (${progress}%)`;
+        }
+      }
+    } else {
+      const blob = await res.blob();
+      transferredBytes = blob.size;
+    }
+
+    const totalDurationSec = (performance.now() - startTime) / 1000;
+    const calculatedMbps =
+      totalDurationSec > 0
+        ? Math.round(((transferredBytes * 8) / (totalDurationSec * 1000 * 1000)) * 10) / 10
+        : 0;
+
+    netState.speedMbps = calculatedMbps;
+    if (netSpeedBarFill) netSpeedBarFill.style.width = "100%";
+    if (netSpeedProgressText) netSpeedProgressText.textContent = `Completed: ${calculatedMbps} Mbps throughput`;
+  } catch (err) {
+    if (navigator.connection && navigator.connection.downlink) {
+      netState.speedMbps = navigator.connection.downlink;
+      if (netSpeedProgressText) netSpeedProgressText.textContent = `Estimated: ${navigator.connection.downlink} Mbps (Network API)`;
+    } else {
+      if (netSpeedProgressText) netSpeedProgressText.textContent = `Speed test error: ${err.message}`;
+    }
+  } finally {
+    netState.isTestingSpeed = false;
+    if (btnRunSpeedTest) {
+      btnRunSpeedTest.disabled = false;
+      btnRunSpeedTest.textContent = "⚡ Test Speed";
+    }
+    updateNetUI();
+  }
+}
+
+async function runAllNetworkTests() {
+  if (netState.isTestingAll) return;
+  netState.isTestingAll = true;
+  if (btnRetestAll) {
+    btnRetestAll.disabled = true;
+    btnRetestAll.textContent = "⏳ Testing…";
+  }
+
+  await checkPing();
+  await checkDns();
+  await runSpeedTest();
+
+  netState.lastTestedAt = Date.now();
+  netState.isTestingAll = false;
+  if (btnRetestAll) {
+    btnRetestAll.disabled = false;
+    btnRetestAll.textContent = "🔄 Retest All";
+  }
+  updateNetUI();
+}
+
+function calculateQualityGrade(ping, dns, speed) {
+  let score = 100;
+  if (ping !== null) {
+    if (ping > 150) score -= 35;
+    else if (ping > 80) score -= 20;
+    else if (ping > 40) score -= 10;
+  }
+  if (dns !== null) {
+    if (dns > 150) score -= 30;
+    else if (dns > 80) score -= 15;
+    else if (dns > 40) score -= 5;
+  }
+  if (speed !== null) {
+    if (speed < 5) score -= 35;
+    else if (speed < 15) score -= 20;
+    else if (speed < 30) score -= 10;
+  }
+  score = Math.max(0, Math.min(100, score));
+
+  let grade = "Good";
+  let dotClass = "net-good";
+  let pillClass = "net-pill-good";
+
+  if (score >= 85) {
+    grade = "Excellent";
+    dotClass = "net-good";
+    pillClass = "net-pill-good";
+  } else if (score >= 65) {
+    grade = "Good";
+    dotClass = "net-good";
+    pillClass = "net-pill-good";
+  } else if (score >= 40) {
+    grade = "Fair";
+    dotClass = "net-fair";
+    pillClass = "net-pill-fair";
+  } else {
+    grade = "Poor";
+    dotClass = "net-poor";
+    pillClass = "net-pill-poor";
+  }
+
+  return { score, grade, dotClass, pillClass };
+}
+
+function updateNetUI() {
+  const { pingMs, pingAvg, pingMin, jitterMs, dnsAvgMs, dnsResults, speedMbps, cfPingMs, googlePingMs } = netState;
+  const { score, grade, dotClass, pillClass } = calculateQualityGrade(pingAvg ?? pingMs, dnsAvgMs, speedMbps);
+
+  if (netIndicatorDot && !netState.isTestingSpeed && !netState.isTestingAll) {
+    netIndicatorDot.className = `net-indicator-dot ${dotClass}`;
+  }
+  if (netBadgePing) {
+    netBadgePing.textContent = pingMs !== null ? `⚡ ${pingMs}ms` : "⚡ --ms";
+  }
+  if (netBadgeDns) {
+    netBadgeDns.textContent = dnsAvgMs !== null ? `· DNS ${dnsAvgMs}ms` : "· DNS --ms";
+  }
+  if (netBadgeSpeed) {
+    netBadgeSpeed.textContent = speedMbps !== null ? `· ${speedMbps} Mbps` : "· -- Mbps";
+  }
+  if (netBadgeLabel) {
+    netBadgeLabel.textContent = grade;
+  }
+
+  if (netModalOverallPill) {
+    netModalOverallPill.className = `net-pill ${pillClass}`;
+    netModalOverallPill.textContent = `${grade === "Poor" ? "🔴" : grade === "Fair" ? "🟡" : "🟢"} ${grade}`;
+  }
+
+  if (netCardPing) {
+    netCardPing.innerHTML = pingMs !== null ? `${pingMs} <small>ms</small>` : `-- <small>ms</small>`;
+  }
+  if (netCardPingSub) {
+    const jitterText = jitterMs !== null ? `${jitterMs}ms` : "--ms";
+    const avgText = pingAvg !== null ? `${pingAvg}ms` : "--ms";
+    const minText = pingMin !== null ? `${pingMin}ms` : "--ms";
+    netCardPingSub.textContent = `Jitter: ${jitterText} · Avg: ${avgText} · Min: ${minText}`;
+  }
+
+  if (netCardDns) {
+    netCardDns.innerHTML = dnsAvgMs !== null ? `${dnsAvgMs} <small>ms</small>` : `-- <small>ms</small>`;
+  }
+  if (netCardDnsSub) {
+    const statusText = dnsAvgMs === null ? "--" : dnsAvgMs < 40 ? "Fast ⚡" : dnsAvgMs < 100 ? "Normal" : "Slow";
+    const resolverInfo = isLocal ? "Local OS Resolver" : "DoH Gateway";
+    netCardDnsSub.textContent = `Status: ${statusText} · Resolver: ${resolverInfo}`;
+  }
+
+  if (netCardSpeed) {
+    netCardSpeed.innerHTML = speedMbps !== null ? `${speedMbps} <small>Mbps</small>` : `-- <small>Mbps</small>`;
+  }
+  if (netCardSpeedSub) {
+    const quality = speedMbps === null ? "--" : speedMbps > 50 ? "Ultra High 🚀" : speedMbps > 20 ? "High ⚡" : "Standard 📶";
+    netCardSpeedSub.textContent = `Throughput: ${quality}`;
+  }
+
+  if (netCardQuality) {
+    netCardQuality.textContent = grade;
+  }
+  if (netCardQualitySub) {
+    netCardQualitySub.textContent = `Health Score: ${score} / 100`;
+  }
+
+  if (netPingGrade) {
+    netPingGrade.textContent = pingMs !== null ? (pingMs < 30 ? "Fast 🟢" : pingMs < 80 ? "Good 🟡" : "High Latency 🔴") : "--";
+  }
+  if (pingRowLocal) {
+    pingRowLocal.textContent = pingMs !== null ? `${pingMs} ms` : "-- ms";
+  }
+  if (pingTagLocal) {
+    if (pingMs !== null) {
+      pingTagLocal.className = `net-tag ${pingMs < 40 ? "net-tag-ok" : pingMs < 100 ? "net-tag-warn" : "net-tag-err"}`;
+      pingTagLocal.textContent = pingMs < 40 ? "Low Latency" : pingMs < 100 ? "Moderate" : "High";
+    }
+  }
+
+  if (pingRowCf) {
+    pingRowCf.textContent = cfPingMs !== null ? `${cfPingMs} ms` : "-- ms";
+  }
+  if (pingTagCf) {
+    if (cfPingMs !== null) {
+      pingTagCf.className = `net-tag ${cfPingMs < 60 ? "net-tag-ok" : cfPingMs < 120 ? "net-tag-warn" : "net-tag-err"}`;
+      pingTagCf.textContent = cfPingMs < 60 ? "Optimal" : "Reachable";
+    }
+  }
+
+  if (pingRowGoogle) {
+    pingRowGoogle.textContent = googlePingMs !== null ? `${googlePingMs} ms` : "-- ms";
+  }
+  if (pingTagGoogle) {
+    if (googlePingMs !== null) {
+      pingTagGoogle.className = `net-tag ${googlePingMs < 60 ? "net-tag-ok" : googlePingMs < 120 ? "net-tag-warn" : "net-tag-err"}`;
+      pingTagGoogle.textContent = googlePingMs < 60 ? "Optimal" : "Reachable";
+    }
+  }
+
+  if (netDnsGrade) {
+    netDnsGrade.textContent = dnsAvgMs !== null ? (dnsAvgMs < 40 ? "Fast 🟢" : dnsAvgMs < 100 ? "Normal 🟡" : "Slow 🔴") : "--";
+  }
+  if (netDnsTableBody && dnsResults && dnsResults.length > 0) {
+    netDnsTableBody.innerHTML = "";
+    for (const item of dnsResults) {
+      const tr = document.createElement("tr");
+      const statusTagClass = !item.ok ? "net-tag-err" : item.durationMs < 30 ? "net-tag-ok" : item.durationMs < 80 ? "net-tag-warn" : "net-tag-err";
+      const statusLabel = !item.ok ? "Failed ✗" : item.durationMs < 30 ? "Fast ⚡" : item.durationMs < 80 ? "Good" : "Slow";
+      const ips = (item.addresses || []).join(", ") || (item.error ? `<span style="color:#ef4444">${item.error}</span>` : "--");
+      const resolver = item.resolver || (isLocal ? "System DNS" : "Cloudflare / Google");
+
+      tr.innerHTML = `
+        <td><strong>${item.host}</strong> (${item.label || item.host})</td>
+        <td>${resolver}</td>
+        <td>${item.durationMs !== undefined ? item.durationMs + " ms" : "--"}</td>
+        <td style="font-family:monospace; font-size:11px">${ips}</td>
+        <td><span class="net-tag ${statusTagClass}">${statusLabel}</span></td>
+      `;
+      netDnsTableBody.appendChild(tr);
+    }
+  }
+
+  if (netDiagConnectionType) {
+    const conn = navigator.connection;
+    const connType = conn ? `${conn.effectiveType || "Online"} (rtt ~${conn.rtt || "--"}ms)` : "Online";
+    netDiagConnectionType.textContent = `Network: ${connType}`;
+  }
+  if (netDiagTimestamp) {
+    netDiagTimestamp.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
+  }
+}
+
+function copyNetworkReport() {
+  const report = [
+    "=== chromeTerminal Connection Diagnostic Report ===",
+    `Timestamp: ${new Date().toISOString()}`,
+    `Overall Quality: ${netCardQuality ? netCardQuality.textContent : "--"}`,
+    `Ping (Local Server): ${netState.pingMs !== null ? netState.pingMs + "ms" : "--"} (Avg: ${netState.pingAvg || "--"}ms, Jitter: ${netState.jitterMs || "--"}ms)`,
+    `Cloudflare CDN Ping: ${netState.cfPingMs !== null ? netState.cfPingMs + "ms" : "--"}`,
+    `Google DNS Ping: ${netState.googlePingMs !== null ? netState.googlePingMs + "ms" : "--"}`,
+    `DNS Resolution Avg: ${netState.dnsAvgMs !== null ? netState.dnsAvgMs + "ms" : "--"}`,
+    `Download Bandwidth: ${netState.speedMbps !== null ? netState.speedMbps + " Mbps" : "--"}`,
+    "",
+    "--- DNS Lookups ---",
+    ...(netState.dnsResults || []).map(
+      (r) => `${r.host}: ${r.durationMs}ms (${r.ok ? (r.addresses || []).join(", ") : r.error})`
+    ),
+  ].join("\n");
+
+  navigator.clipboard.writeText(report).then(() => {
+    if (btnCopyNetDiag) {
+      const orig = btnCopyNetDiag.textContent;
+      btnCopyNetDiag.textContent = "✅ Copied!";
+      setTimeout(() => {
+        btnCopyNetDiag.textContent = orig;
+      }, 2000);
+    }
+  });
+}
+
 function openPrompts() {
   promptsEl.hidden = false;
   renderPromptLibrary();
@@ -1075,15 +1593,50 @@ function setProjectSort(mode) {
   renderProjects();
 }
 
+function loadPinnedProjects() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PINNED_PROJECTS_KEY) || "[]");
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePinnedProjects(list) {
+  localStorage.setItem(PINNED_PROJECTS_KEY, JSON.stringify(list));
+}
+
+function togglePinProject(name) {
+  const list = loadPinnedProjects();
+  const idx = list.indexOf(name);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+  } else {
+    list.push(name);
+  }
+  savePinnedProjects(list);
+  renderProjects();
+}
+
 function renderProjects() {
   const q = (projectFilter.value || "").trim().toLowerCase();
-  const matches = catalog.projects
-    .filter((p) => p.name.toLowerCase().includes(q))
-    .slice()
-    .sort((a, b) => {
-      if (projectSort === "latest") return (b.mtimeMs || 0) - (a.mtimeMs || 0);
-      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    });
+  const pinnedList = loadPinnedProjects();
+  const pinnedSet = new Set(pinnedList);
+
+  const filtered = catalog.projects.filter((p) => p.name.toLowerCase().includes(q));
+
+  const matches = filtered.slice().sort((a, b) => {
+    const aPinned = pinnedSet.has(a.name);
+    const bPinned = pinnedSet.has(b.name);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    if (aPinned && bPinned) {
+      return pinnedList.indexOf(a.name) - pinnedList.indexOf(b.name);
+    }
+    if (projectSort === "latest") return (b.mtimeMs || 0) - (a.mtimeMs || 0);
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
+
   projectBar.replaceChildren();
 
   if (!matches.length) {
@@ -1099,14 +1652,33 @@ function renderProjects() {
   }
 
   for (const project of matches.slice(0, 200)) {
+    const isPinned = pinnedSet.has(project.name);
+
+    const chip = document.createElement("div");
+    chip.className = `project-chip ${isPinned ? "pinned" : ""}`;
+
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = `📁 ${project.name}`;
+    btn.className = "project-chip-btn";
+    btn.textContent = `${isPinned ? "📌" : "📁"} ${project.name}`;
     btn.title = project.mtimeMs
       ? `${project.path} · ${new Date(project.mtimeMs).toLocaleString()}`
       : project.path;
     btn.addEventListener("click", () => cdTo(project.path, project.name));
-    projectBar.append(btn);
+
+    const pinBtn = document.createElement("button");
+    pinBtn.type = "button";
+    pinBtn.className = `project-pin-toggle ${isPinned ? "pinned" : ""}`;
+    pinBtn.title = isPinned ? `Unpin ${project.name}` : `Pin ${project.name} to top`;
+    pinBtn.innerHTML = isPinned ? "★" : "☆";
+    pinBtn.setAttribute("aria-label", isPinned ? `Unpin ${project.name}` : `Pin ${project.name}`);
+    pinBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePinProject(project.name);
+    });
+
+    chip.append(btn, pinBtn);
+    projectBar.append(chip);
   }
 }
 
@@ -1321,6 +1893,19 @@ guideClose.addEventListener("click", closeGuide);
 guideEl.addEventListener("click", (event) => {
   if (event.target === guideEl) closeGuide();
 });
+
+if (netQualityBadge) netQualityBadge.addEventListener("click", openNetModal);
+if (btnNetModal) btnNetModal.addEventListener("click", openNetModal);
+if (netModalClose) netModalClose.addEventListener("click", closeNetModal);
+if (netModalEl) {
+  netModalEl.addEventListener("click", (event) => {
+    if (event.target === netModalEl) closeNetModal();
+  });
+}
+if (btnRunSpeedTest) btnRunSpeedTest.addEventListener("click", runSpeedTest);
+if (btnRetestAll) btnRetestAll.addEventListener("click", runAllNetworkTests);
+if (btnCopyNetDiag) btnCopyNetDiag.addEventListener("click", copyNetworkReport);
+
 promptsBtn.addEventListener("click", openPrompts);
 promptsClose.addEventListener("click", closePrompts);
 promptsEl.addEventListener("click", (event) => {
@@ -1343,6 +1928,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (dictating) {
     stopDictation();
+    return;
+  }
+  if (netModalEl && !netModalEl.hidden) {
+    closeNetModal();
     return;
   }
   if (!promptsEl.hidden) {
@@ -1417,6 +2006,16 @@ document.getElementById("panel-dock").addEventListener("click", (event) => {
   togglePanel(btn.getAttribute("data-panel-toggle"));
 });
 
+document.addEventListener("click", (event) => {
+  const closeBtn = event.target.closest("[data-panel-close]");
+  if (!closeBtn) return;
+  const id = closeBtn.getAttribute("data-panel-close");
+  const state = loadPanelState();
+  state[id] = false;
+  savePanelState(state);
+  applyPanelState(state);
+});
+
 document.getElementById("btn-collapse-all").addEventListener("click", () => setAllPanels(false));
 document.getElementById("btn-expand-all").addEventListener("click", () => setAllPanels(true));
 
@@ -1450,5 +2049,8 @@ window.addEventListener("load", () => {
   loadProjects().catch((err) => {
     projectBar.textContent = err.message;
   });
+  checkPing();
+  checkDns();
+  setInterval(checkPing, 8000);
   if (!isLocal) openGuide();
 });

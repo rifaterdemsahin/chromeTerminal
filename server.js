@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import dns from "node:dns";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -74,6 +75,100 @@ function authorizedHttp(req) {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, shell: SHELL, host: HOST, port: PORT, projectsDir: PROJECTS_DIR });
+});
+
+app.get("/api/net-ping", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.json({ ok: true, timestamp: Date.now() });
+});
+
+app.get("/api/net-dns", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
+  const testHosts = [
+    { host: "google.com", label: "Google" },
+    { host: "cloudflare.com", label: "Cloudflare" },
+    { host: "github.com", label: "GitHub" },
+    { host: "apple.com", label: "Apple" },
+    { host: "wikipedia.org", label: "Wikipedia" },
+  ];
+
+  const results = await Promise.all(
+    testHosts.map(async ({ host, label }) => {
+      const start = performance.now();
+      try {
+        const addresses = await dns.promises.resolve4(host);
+        const durationMs = Math.round((performance.now() - start) * 100) / 100;
+        return { host, label, ok: true, durationMs, addresses: addresses.slice(0, 4) };
+      } catch (err) {
+        const durationMs = Math.round((performance.now() - start) * 100) / 100;
+        return { host, label, ok: false, durationMs, error: err.message };
+      }
+    })
+  );
+
+  let systemServers = [];
+  try {
+    systemServers = dns.getServers();
+  } catch {
+    systemServers = [];
+  }
+
+  const successful = results.filter((r) => r.ok);
+  const avgDnsMs =
+    successful.length > 0
+      ? Math.round(
+          (successful.reduce((sum, r) => sum + r.durationMs, 0) / successful.length) * 10
+        ) / 10
+      : null;
+
+  res.json({
+    ok: true,
+    servers: systemServers,
+    avgDnsMs,
+    results,
+    timestamp: Date.now(),
+  });
+});
+
+app.get("/api/net-speed", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const requestedMb = Math.min(Math.max(Number(req.query.mb) || 2, 0.5), 10);
+  const bytesCount = Math.round(requestedMb * 1024 * 1024);
+
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Length", bytesCount);
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
+  const chunkSize = 64 * 1024;
+  const chunk = Buffer.alloc(chunkSize, 0x41);
+  let bytesRemaining = bytesCount;
+
+  function sendNext() {
+    while (bytesRemaining > 0) {
+      const toSend = Math.min(bytesRemaining, chunkSize);
+      bytesRemaining -= toSend;
+      const canContinue = res.write(toSend === chunkSize ? chunk : chunk.subarray(0, toSend));
+      if (!canContinue) {
+        res.once("drain", sendNext);
+        return;
+      }
+    }
+    res.end();
+  }
+
+  sendNext();
 });
 
 app.get("/api/projects", (req, res) => {
