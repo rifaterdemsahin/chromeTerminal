@@ -19,6 +19,13 @@ const promptListEl = document.getElementById("prompt-list");
 const themeBar = document.getElementById("theme-bar");
 const watermarkEl = document.getElementById("watermark");
 const watermarkInput = document.getElementById("watermark-input");
+const btnBadgeEmoji = document.getElementById("btn-badge-emoji");
+const emojiPickerModal = document.getElementById("emoji-picker-modal");
+const emojiPickerClose = document.getElementById("emoji-picker-close");
+const emojiSearchInput = document.getElementById("emoji-search-input");
+const emojiCatTabs = document.getElementById("emoji-cat-tabs");
+const emojiPickerContent = document.getElementById("emoji-picker-content");
+const btnEmojiClearBadge = document.getElementById("btn-emoji-clear-badge");
 
 const netQualityBadge = document.getElementById("net-quality-badge");
 const btnNetModal = document.getElementById("btn-net-modal");
@@ -527,7 +534,7 @@ const WATERMARK_KEY = "chromeTerminal.watermark";
 const PANELS_KEY = "chromeTerminal.panels";
 const CUSTOM_PROMPTS_KEY = "chromeTerminal.customPrompts";
 const PINNED_PROJECTS_KEY = "chromeTerminal.pinnedProjects";
-const PANEL_IDS = ["menu", "projects", "badge", "theme", "blurb"];
+const PANEL_IDS = ["menu", "projects", "agents", "badge", "theme", "help", "blurb"];
 const SORT_KEY = "chromeTerminal.projectSort";
 let projectSort = localStorage.getItem(SORT_KEY) === "latest" ? "latest" : "name";
 
@@ -759,6 +766,346 @@ function setWatermark(text, persist = true) {
     else sessionStorage.removeItem(WATERMARK_KEY);
   }
   document.title = label ? `${label} · chromeTerminal` : "chromeTerminal";
+}
+
+const RECENT_EMOJIS_KEY = "chromeTerminal.recentEmojis";
+const DEFAULT_RECENT_EMOJIS = ["🤖", "🚀", "✨", "💻", "🔥", "⚡", "🛠️", "🎯", "🐛", "🧪", "🔒", "🌐"];
+
+const EMOJI_CATEGORIES = {
+  dev: "💻 Dev & Tech",
+  smileys: "😀 Mood & Smileys",
+  objects: "🎯 Objects & Symbols",
+  nature: "🌿 Nature & Food",
+  status: "🚩 Status & Shapes",
+};
+
+const EMOJI_DATABASE = [
+  // Dev & Tech
+  { emoji: "💻", name: "Laptop", keywords: ["laptop", "computer", "dev", "code", "programming", "work", "pc"], cat: "dev" },
+  { emoji: "🖥️", name: "Desktop", keywords: ["desktop", "screen", "monitor", "display", "imac", "mac"], cat: "dev" },
+  { emoji: "📱", name: "Phone", keywords: ["phone", "mobile", "ios", "iphone", "android"], cat: "dev" },
+  { emoji: "⌨️", name: "Keyboard", keywords: ["keyboard", "typing", "keys", "input"], cat: "dev" },
+  { emoji: "🖱️", name: "Mouse", keywords: ["mouse", "click", "trackpad"], cat: "dev" },
+  { emoji: "⚡", name: "Lightning", keywords: ["lightning", "fast", "speed", "quick", "energy", "power", "vite"], cat: "dev" },
+  { emoji: "🚀", name: "Rocket", keywords: ["rocket", "launch", "deploy", "ship", "fast", "space", "prod"], cat: "dev" },
+  { emoji: "🤖", name: "Robot", keywords: ["robot", "bot", "ai", "grok", "agent", "llm", "automation"], cat: "dev" },
+  { emoji: "✨", name: "Sparkles", keywords: ["sparkles", "magic", "agy", "clean", "new", "star", "awesome"], cat: "dev" },
+  { emoji: "🛠️", name: "Tools", keywords: ["tools", "build", "config", "wrench", "settings", "fix"], cat: "dev" },
+  { emoji: "🔧", name: "Wrench", keywords: ["wrench", "fix", "repair", "tool", "config"], cat: "dev" },
+  { emoji: "🔨", name: "Hammer", keywords: ["hammer", "build", "construction", "make"], cat: "dev" },
+  { emoji: "📦", name: "Package", keywords: ["package", "npm", "module", "box", "bundle", "cargo"], cat: "dev" },
+  { emoji: "📁", name: "Folder", keywords: ["folder", "directory", "project", "dir", "files"], cat: "dev" },
+  { emoji: "📂", name: "Open Folder", keywords: ["folder", "open", "directory", "projects"], cat: "dev" },
+  { emoji: "💾", name: "Disk", keywords: ["disk", "save", "floppy", "storage", "memory"], cat: "dev" },
+  { emoji: "💿", name: "Optical Disk", keywords: ["cd", "dvd", "iso", "disk", "media"], cat: "dev" },
+  { emoji: "📡", name: "Satellite", keywords: ["satellite", "network", "signal", "wifi", "connect", "radar"], cat: "dev" },
+  { emoji: "🔒", name: "Lock", keywords: ["lock", "security", "auth", "token", "private", "secure"], cat: "dev" },
+  { emoji: "🔑", name: "Key", keywords: ["key", "secret", "access", "ssh", "auth"], cat: "dev" },
+  { emoji: "🛡️", name: "Shield", keywords: ["shield", "security", "protect", "defense", "guard"], cat: "dev" },
+  { emoji: "🐛", name: "Bug", keywords: ["bug", "debug", "issue", "error", "fix", "insect"], cat: "dev" },
+  { emoji: "🧪", name: "Test Tube", keywords: ["test", "experiment", "lab", "trial", "unit test", "qa"], cat: "dev" },
+  { emoji: "🔬", name: "Microscope", keywords: ["microscope", "research", "investigate", "deep", "analyze"], cat: "dev" },
+  { emoji: "⚙️", name: "Gear", keywords: ["gear", "settings", "options", "engine", "system", "config"], cat: "dev" },
+  { emoji: "🔌", name: "Plug", keywords: ["plug", "connect", "adapter", "socket", "port"], cat: "dev" },
+  { emoji: "🔋", name: "Battery", keywords: ["battery", "power", "energy", "charge"], cat: "dev" },
+  { emoji: "🌐", name: "Globe", keywords: ["globe", "web", "internet", "online", "network", "dns", "http"], cat: "dev" },
+  { emoji: "🧭", name: "Compass", keywords: ["compass", "navigation", "explore", "route", "direction"], cat: "dev" },
+  { emoji: "🐳", name: "Whale / Docker", keywords: ["whale", "docker", "container", "devops"], cat: "dev" },
+  { emoji: "🐍", name: "Snake / Python", keywords: ["snake", "python", "py", "script"], cat: "dev" },
+  { emoji: "🦀", name: "Crab / Rust", keywords: ["crab", "rust", "ferris", "cargo"], cat: "dev" },
+  { emoji: "⚛️", name: "Atom / React", keywords: ["atom", "react", "science", "physics", "frontend"], cat: "dev" },
+  { emoji: "☕", name: "Coffee / Java", keywords: ["coffee", "java", "drink", "break", "code"], cat: "dev" },
+  { emoji: "🍺", name: "Beer / Brew", keywords: ["beer", "brew", "homebrew", "toast"], cat: "dev" },
+  { emoji: "🎨", name: "Palette", keywords: ["palette", "theme", "design", "css", "color", "style", "ui"], cat: "dev" },
+  { emoji: "📝", name: "Memo", keywords: ["memo", "note", "doc", "readme", "write", "text"], cat: "dev" },
+  { emoji: "📊", name: "Bar Chart", keywords: ["chart", "stats", "metrics", "graph", "analytics"], cat: "dev" },
+  { emoji: "📈", name: "Trending Up", keywords: ["growth", "up", "chart", "profit", "speed", "metric"], cat: "dev" },
+  { emoji: "💡", name: "Idea", keywords: ["idea", "lightbulb", "smart", "solution", "tip"], cat: "dev" },
+
+  // Smileys & Mood
+  { emoji: "😀", name: "Grinning", keywords: ["smile", "happy", "grin", "mood"], cat: "smileys" },
+  { emoji: "😃", name: "Smiling", keywords: ["smile", "happy", "joy"], cat: "smileys" },
+  { emoji: "😄", name: "Laughing", keywords: ["laugh", "happy", "cheerful"], cat: "smileys" },
+  { emoji: "😁", name: "Beaming", keywords: ["beam", "grin", "teeth"], cat: "smileys" },
+  { emoji: "😆", name: "Grinning Squinting", keywords: ["laugh", "fun", "lol"], cat: "smileys" },
+  { emoji: "😅", name: "Sweat Smile", keywords: ["sweat", "nervous", "relief", "whew"], cat: "smileys" },
+  { emoji: "😂", name: "Joy", keywords: ["laugh", "crying laughing", "lol", "rofl"], cat: "smileys" },
+  { emoji: "🤣", name: "ROFL", keywords: ["rofl", "rolling", "laughing"], cat: "smileys" },
+  { emoji: "😊", name: "Blushing Smile", keywords: ["smile", "warm", "nice"], cat: "smileys" },
+  { emoji: "😇", name: "Halo", keywords: ["angel", "good", "halo", "innocent"], cat: "smileys" },
+  { emoji: "🙂", name: "Slight Smile", keywords: ["smile", "fine", "ok"], cat: "smileys" },
+  { emoji: "🙃", name: "Upside Down", keywords: ["upside down", "silly", "sarcasm"], cat: "smileys" },
+  { emoji: "😉", name: "Wink", keywords: ["wink", "flirt", "secret"], cat: "smileys" },
+  { emoji: "😌", name: "Relieved", keywords: ["relief", "calm", "zen", "peace"], cat: "smileys" },
+  { emoji: "😍", name: "Heart Eyes", keywords: ["love", "heart", "crush", "adoring"], cat: "smileys" },
+  { emoji: "🥰", name: "Hearts", keywords: ["love", "affection", "warm"], cat: "smileys" },
+  { emoji: "😎", name: "Cool Sunglasses", keywords: ["cool", "sunglasses", "swag", "boss"], cat: "smileys" },
+  { emoji: "🤓", name: "Nerd", keywords: ["nerd", "geek", "glasses", "smart", "code"], cat: "smileys" },
+  { emoji: "🧐", name: "Monocle", keywords: ["monocle", "curious", "inspect", "investigate", "hm"], cat: "smileys" },
+  { emoji: "🥳", name: "Partying", keywords: ["party", "celebrate", "birthday", "yay"], cat: "smileys" },
+  { emoji: "🤠", name: "Cowboy", keywords: ["cowboy", "wild", "yeehaw"], cat: "smileys" },
+  { emoji: "👾", name: "Alien Monster", keywords: ["game", "retro", "invader", "pixel", "arcade"], cat: "smileys" },
+  { emoji: "👻", name: "Ghost", keywords: ["ghost", "spooky", "boo", "halloween"], cat: "smileys" },
+  { emoji: "💀", name: "Skull", keywords: ["skull", "dead", "skeleton", "danger"], cat: "smileys" },
+  { emoji: "👽", name: "Alien", keywords: ["alien", "ufo", "space", "sci-fi"], cat: "smileys" },
+  { emoji: "🦾", name: "Mechanical Arm", keywords: ["robot", "cyborg", "prosthetic", "tech", "strength"], cat: "smileys" },
+  { emoji: "🧠", name: "Brain", keywords: ["brain", "smart", "think", "intellect", "ai", "mind"], cat: "smileys" },
+  { emoji: "👑", name: "Crown", keywords: ["crown", "king", "queen", "vip", "royal", "winner"], cat: "smileys" },
+  { emoji: "🔥", name: "Fire", keywords: ["fire", "flame", "hot", "lit", "trendy", "burn"], cat: "smileys" },
+  { emoji: "💯", name: "100", keywords: ["hundred", "perfect", "score", "top"], cat: "smileys" },
+  { emoji: "🎉", name: "Tada", keywords: ["party", "popper", "tada", "congrats", "celebrate"], cat: "smileys" },
+  { emoji: "🎊", name: "Confetti", keywords: ["confetti", "ball", "celebration"], cat: "smileys" },
+
+  // Objects & Symbols
+  { emoji: "🎯", name: "Direct Hit", keywords: ["target", "bullseye", "goal", "aim", "focus"], cat: "objects" },
+  { emoji: "🏷️", name: "Label", keywords: ["label", "tag", "badge", "mark", "ticket"], cat: "objects" },
+  { emoji: "📌", name: "Pushpin", keywords: ["pin", "pinned", "mark", "note"], cat: "objects" },
+  { emoji: "📍", name: "Round Pin", keywords: ["pin", "location", "place", "map"], cat: "objects" },
+  { emoji: "🚩", name: "Triangular Flag", keywords: ["flag", "red", "marker", "milestone"], cat: "objects" },
+  { emoji: "🏁", name: "Chequered Flag", keywords: ["finish", "race", "done", "complete"], cat: "objects" },
+  { emoji: "🏆", name: "Trophy", keywords: ["trophy", "cup", "winner", "first", "prize"], cat: "objects" },
+  { emoji: "🥇", name: "1st Place", keywords: ["gold", "medal", "first", "champion"], cat: "objects" },
+  { emoji: "🥈", name: "2nd Place", keywords: ["silver", "medal", "second"], cat: "objects" },
+  { emoji: "🥉", name: "3rd Place", keywords: ["bronze", "medal", "third"], cat: "objects" },
+  { emoji: "💎", name: "Gem", keywords: ["gem", "diamond", "jewel", "precious", "valuable"], cat: "objects" },
+  { emoji: "🔮", name: "Crystal Ball", keywords: ["magic", "future", "fortune", "mystic"], cat: "objects" },
+  { emoji: "🪄", name: "Magic Wand", keywords: ["magic", "wand", "spell", "trick"], cat: "objects" },
+  { emoji: "🎁", name: "Gift", keywords: ["gift", "present", "box", "reward"], cat: "objects" },
+  { emoji: "🔔", name: "Bell", keywords: ["bell", "notification", "alert", "ring"], cat: "objects" },
+  { emoji: "📢", name: "Loudspeaker", keywords: ["speaker", "announcement", "shout", "news"], cat: "objects" },
+  { emoji: "💬", name: "Speech Bubble", keywords: ["chat", "message", "speech", "comment", "talk"], cat: "objects" },
+  { emoji: "💭", name: "Thought Bubble", keywords: ["thought", "think", "bubble", "dream"], cat: "objects" },
+  { emoji: "⏳", name: "Hourglass", keywords: ["hourglass", "time", "wait", "loading", "clock"], cat: "objects" },
+  { emoji: "⏱️", name: "Stopwatch", keywords: ["stopwatch", "timer", "speed", "fast"], cat: "objects" },
+  { emoji: "⏰", name: "Alarm Clock", keywords: ["clock", "alarm", "wake", "time"], cat: "objects" },
+  { emoji: "🛸", name: "UFO", keywords: ["ufo", "flying saucer", "space", "alien"], cat: "objects" },
+  { emoji: "🚗", name: "Car", keywords: ["car", "drive", "vehicle", "auto"], cat: "objects" },
+  { emoji: "🏎️", name: "Race Car", keywords: ["race", "car", "fast", "f1", "speed"], cat: "objects" },
+  { emoji: "✈️", name: "Airplane", keywords: ["plane", "flight", "travel", "fly"], cat: "objects" },
+  { emoji: "⚓", name: "Anchor", keywords: ["anchor", "ship", "sea", "stable"], cat: "objects" },
+
+  // Nature & Animals
+  { emoji: "🌲", name: "Evergreen Tree", keywords: ["tree", "pine", "forest", "nature", "green"], cat: "nature" },
+  { emoji: "🌴", name: "Palm Tree", keywords: ["palm", "beach", "tropical", "vacation"], cat: "nature" },
+  { emoji: "🌵", name: "Cactus", keywords: ["cactus", "desert", "plant"], cat: "nature" },
+  { emoji: "🍀", name: "Four Leaf Clover", keywords: ["clover", "lucky", "luck", "green"], cat: "nature" },
+  { emoji: "🌿", name: "Herb", keywords: ["herb", "plant", "leaf", "nature"], cat: "nature" },
+  { emoji: "🌸", name: "Cherry Blossom", keywords: ["sakura", "flower", "pink", "spring"], cat: "nature" },
+  { emoji: "🌻", name: "Sunflower", keywords: ["sunflower", "flower", "yellow", "summer"], cat: "nature" },
+  { emoji: "☀️", name: "Sun", keywords: ["sun", "sunny", "bright", "day", "warm"], cat: "nature" },
+  { emoji: "🌙", name: "Crescent Moon", keywords: ["moon", "night", "dark", "evening"], cat: "nature" },
+  { emoji: "🪐", name: "Ringed Planet", keywords: ["planet", "saturn", "space", "galaxy"], cat: "nature" },
+  { emoji: "🌍", name: "Globe Europe-Africa", keywords: ["earth", "world", "planet"], cat: "nature" },
+  { emoji: "🦁", name: "Lion", keywords: ["lion", "king", "cat", "brave", "wild"], cat: "nature" },
+  { emoji: "🐯", name: "Tiger", keywords: ["tiger", "cat", "stripes", "fierce"], cat: "nature" },
+  { emoji: "🐱", name: "Cat", keywords: ["cat", "kitty", "kitten", "meow"], cat: "nature" },
+  { emoji: "🐶", name: "Dog", keywords: ["dog", "puppy", "bark", "pet"], cat: "nature" },
+  { emoji: "🦊", name: "Fox", keywords: ["fox", "clever", "smart", "animal"], cat: "nature" },
+  { emoji: "🐺", name: "Wolf", keywords: ["wolf", "howl", "pack"], cat: "nature" },
+  { emoji: "🐼", name: "Panda", keywords: ["panda", "bear", "cute"], cat: "nature" },
+  { emoji: "🦄", name: "Unicorn", keywords: ["unicorn", "magic", "rare", "startup"], cat: "nature" },
+  { emoji: "🦅", name: "Eagle", keywords: ["eagle", "bird", "fly", "freedom"], cat: "nature" },
+  { emoji: "🦉", name: "Owl", keywords: ["owl", "wise", "smart", "night"], cat: "nature" },
+  { emoji: "🐙", name: "Octopus", keywords: ["octopus", "tentacles", "sea", "smart"], cat: "nature" },
+  { emoji: "🦈", name: "Shark", keywords: ["shark", "ocean", "predator"], cat: "nature" },
+  { emoji: "🍎", name: "Red Apple", keywords: ["apple", "mac", "fruit", "food"], cat: "nature" },
+  { emoji: "🍕", name: "Pizza", keywords: ["pizza", "food", "slice", "cheese"], cat: "nature" },
+  { emoji: "🍔", name: "Burger", keywords: ["burger", "food", "fastfood"], cat: "nature" },
+  { emoji: "🍣", name: "Sushi", keywords: ["sushi", "japanese", "fish", "food"], cat: "nature" },
+  { emoji: "🍩", name: "Doughnut", keywords: ["donut", "doughnut", "sweet", "sugar"], cat: "nature" },
+
+  // Status & Shapes
+  { emoji: "🟢", name: "Green Circle", keywords: ["green", "circle", "ok", "online", "up", "success"], cat: "status" },
+  { emoji: "🟡", name: "Yellow Circle", keywords: ["yellow", "circle", "warning", "pending", "idle"], cat: "status" },
+  { emoji: "🔴", name: "Red Circle", keywords: ["red", "circle", "error", "down", "stop", "failed"], cat: "status" },
+  { emoji: "🟣", name: "Purple Circle", keywords: ["purple", "circle", "violet", "grok"], cat: "status" },
+  { emoji: "🔵", name: "Blue Circle", keywords: ["blue", "circle", "info", "azure"], cat: "status" },
+  { emoji: "🟠", name: "Orange Circle", keywords: ["orange", "circle", "alert"], cat: "status" },
+  { emoji: "⚪", name: "White Circle", keywords: ["white", "circle", "neutral"], cat: "status" },
+  { emoji: "⚫", name: "Black Circle", keywords: ["black", "circle", "dark"], cat: "status" },
+  { emoji: "🟩", name: "Green Square", keywords: ["green", "square", "block"], cat: "status" },
+  { emoji: "🟨", name: "Yellow Square", keywords: ["yellow", "square", "block"], cat: "status" },
+  { emoji: "🟥", name: "Red Square", keywords: ["red", "square", "block"], cat: "status" },
+  { emoji: "🟦", name: "Blue Square", keywords: ["blue", "square", "block"], cat: "status" },
+  { emoji: "⚠️", name: "Warning", keywords: ["warning", "alert", "caution", "danger", "hazard"], cat: "status" },
+  { emoji: "⛔", name: "No Entry", keywords: ["stop", "no entry", "forbidden", "block"], cat: "status" },
+  { emoji: "🛑", name: "Stop Sign", keywords: ["stop", "halt", "red", "sign"], cat: "status" },
+  { emoji: "✅", name: "Check Mark", keywords: ["check", "yes", "done", "ok", "complete", "correct"], cat: "status" },
+  { emoji: "❌", name: "Cross Mark", keywords: ["cross", "x", "no", "wrong", "delete", "cancel"], cat: "status" },
+  { emoji: "❓", name: "Question Mark", keywords: ["question", "help", "what", "unknown"], cat: "status" },
+  { emoji: "❗", name: "Exclamation Mark", keywords: ["exclamation", "important", "alert", "bang"], cat: "status" },
+  { emoji: "🏁", name: "Flag Finish", keywords: ["finish", "complete", "done"], cat: "status" },
+  { emoji: "🏴‍☠️", name: "Pirate Flag", keywords: ["pirate", "skull", "rebel", "hack"], cat: "status" },
+];
+
+let activeEmojiCategory = "all";
+
+function loadRecentEmojis() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_EMOJIS_KEY) || "[]");
+    return Array.isArray(raw) && raw.length ? raw : DEFAULT_RECENT_EMOJIS;
+  } catch {
+    return DEFAULT_RECENT_EMOJIS;
+  }
+}
+
+function saveRecentEmoji(emoji) {
+  if (!emoji) return;
+  const list = loadRecentEmojis().filter((e) => e !== emoji);
+  list.unshift(emoji);
+  localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(list.slice(0, 32)));
+}
+
+function insertEmojiToWatermark(emojiChar) {
+  if (!emojiChar) return;
+  saveRecentEmoji(emojiChar);
+
+  const current = watermarkInput.value;
+  const start = watermarkInput.selectionStart;
+  const end = watermarkInput.selectionEnd;
+
+  if (typeof start === "number" && typeof end === "number" && document.activeElement === watermarkInput) {
+    watermarkInput.value = current.slice(0, start) + emojiChar + " " + current.slice(end);
+    const nextPos = start + emojiChar.length + 1;
+    watermarkInput.setSelectionRange(nextPos, nextPos);
+  } else {
+    if (!current) {
+      watermarkInput.value = emojiChar + " ";
+    } else {
+      const trimmed = current.trim();
+      watermarkInput.value = `${emojiChar} ${trimmed}`;
+    }
+  }
+
+  setWatermark(watermarkInput.value);
+  closeEmojiPicker();
+  watermarkInput.focus();
+}
+
+function openEmojiPicker() {
+  if (!emojiPickerModal) return;
+  emojiPickerModal.hidden = false;
+  activeEmojiCategory = "all";
+  if (emojiSearchInput) {
+    emojiSearchInput.value = "";
+    emojiSearchInput.focus();
+  }
+  document.querySelectorAll(".emoji-tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-cat") === "all");
+  });
+  renderEmojiPicker("all", "");
+}
+
+function closeEmojiPicker() {
+  if (!emojiPickerModal) return;
+  emojiPickerModal.hidden = true;
+  if (isLocal) term.focus();
+}
+
+function renderEmojiPicker(cat = "all", searchQuery = "") {
+  if (!emojiPickerContent) return;
+  emojiPickerContent.replaceChildren();
+
+  const query = searchQuery.trim().toLowerCase();
+  const recentList = loadRecentEmojis();
+
+  // 1. If searching, filter all matching emojis
+  if (query) {
+    const matches = EMOJI_DATABASE.filter(
+      (item) =>
+        item.emoji.includes(query) ||
+        item.name.toLowerCase().includes(query) ||
+        item.keywords.some((k) => k.toLowerCase().includes(query))
+    );
+
+    const section = document.createElement("div");
+    section.className = "emoji-cat-section";
+
+    const title = document.createElement("h4");
+    title.className = "emoji-cat-title";
+    title.textContent = matches.length ? `Search Results (${matches.length})` : "No emojis found";
+    section.append(title);
+
+    const grid = document.createElement("div");
+    grid.className = "emoji-grid";
+
+    for (const item of matches) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-item-btn";
+      btn.textContent = item.emoji;
+      btn.title = `${item.name} (${item.emoji})`;
+      btn.setAttribute("aria-label", item.name);
+      btn.addEventListener("click", () => insertEmojiToWatermark(item.emoji));
+      grid.append(btn);
+    }
+
+    section.append(grid);
+    emojiPickerContent.append(section);
+    return;
+  }
+
+  // 2. If category is "recent", render recent section
+  if (cat === "recent" || cat === "all") {
+    const recentSection = document.createElement("div");
+    recentSection.className = "emoji-cat-section";
+
+    const title = document.createElement("h4");
+    title.className = "emoji-cat-title";
+    title.textContent = "🕒 Recently Used";
+    recentSection.append(title);
+
+    const grid = document.createElement("div");
+    grid.className = "emoji-grid";
+
+    for (const emoji of recentList) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-item-btn";
+      btn.textContent = emoji;
+      btn.title = emoji;
+      btn.addEventListener("click", () => insertEmojiToWatermark(emoji));
+      grid.append(btn);
+    }
+
+    recentSection.append(grid);
+    emojiPickerContent.append(recentSection);
+
+    if (cat === "recent") return;
+  }
+
+  // 3. Render categories
+  const categoriesToRender = cat === "all" ? Object.keys(EMOJI_CATEGORIES) : [cat];
+
+  for (const catKey of categoriesToRender) {
+    const catItems = EMOJI_DATABASE.filter((i) => i.cat === catKey);
+    if (!catItems.length) continue;
+
+    const section = document.createElement("div");
+    section.className = "emoji-cat-section";
+
+    const title = document.createElement("h4");
+    title.className = "emoji-cat-title";
+    title.textContent = EMOJI_CATEGORIES[catKey] || catKey;
+    section.append(title);
+
+    const grid = document.createElement("div");
+    grid.className = "emoji-grid";
+
+    for (const item of catItems) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-item-btn";
+      btn.textContent = item.emoji;
+      btn.title = `${item.name} (${item.emoji})`;
+      btn.setAttribute("aria-label", item.name);
+      btn.addEventListener("click", () => insertEmojiToWatermark(item.emoji));
+      grid.append(btn);
+    }
+
+    section.append(grid);
+    emojiPickerContent.append(section);
+  }
 }
 
 function cdTo(dirPath, badge) {
@@ -1593,6 +1940,8 @@ function setProjectSort(mode) {
   renderProjects();
 }
 
+let draggedProject = null;
+
 function loadPinnedProjects() {
   try {
     const raw = JSON.parse(localStorage.getItem(PINNED_PROJECTS_KEY) || "[]");
@@ -1612,8 +1961,36 @@ function togglePinProject(name) {
   if (idx >= 0) {
     list.splice(idx, 1);
   } else {
-    list.push(name);
+    list.unshift(name);
   }
+  savePinnedProjects(list);
+  renderProjects();
+}
+
+function movePinnedProject(name, offset) {
+  const list = loadPinnedProjects();
+  const idx = list.indexOf(name);
+  if (idx < 0) return;
+  const newIdx = idx + offset;
+  if (newIdx < 0 || newIdx >= list.length) return;
+  list.splice(idx, 1);
+  list.splice(newIdx, 0, name);
+  savePinnedProjects(list);
+  renderProjects();
+}
+
+function reversePinnedProjects() {
+  const list = loadPinnedProjects();
+  if (list.length < 2) return;
+  list.reverse();
+  savePinnedProjects(list);
+  renderProjects();
+}
+
+function sortPinnedProjectsAZ() {
+  const list = loadPinnedProjects();
+  if (list.length < 2) return;
+  list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   savePinnedProjects(list);
   renderProjects();
 }
@@ -1656,6 +2033,66 @@ function renderProjects() {
 
     const chip = document.createElement("div");
     chip.className = `project-chip ${isPinned ? "pinned" : ""}`;
+    chip.dataset.project = project.name;
+
+    if (isPinned) {
+      chip.setAttribute("draggable", "true");
+      chip.title = `Drag to reorder pinned project · ${project.path}`;
+
+      chip.addEventListener("dragstart", (e) => {
+        draggedProject = project.name;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", project.name);
+        chip.classList.add("dragging");
+      });
+
+      chip.addEventListener("dragend", () => {
+        draggedProject = null;
+        chip.classList.remove("dragging");
+        document.querySelectorAll(".project-chip.drag-over").forEach((el) => el.classList.remove("drag-over"));
+      });
+
+      chip.addEventListener("dragover", (e) => {
+        if (!draggedProject || draggedProject === project.name) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        chip.classList.add("drag-over");
+      });
+
+      chip.addEventListener("dragleave", () => {
+        chip.classList.remove("drag-over");
+      });
+
+      chip.addEventListener("drop", (e) => {
+        e.preventDefault();
+        chip.classList.remove("drag-over");
+        if (!draggedProject || draggedProject === project.name) return;
+        const list = loadPinnedProjects();
+        const fromIdx = list.indexOf(draggedProject);
+        const toIdx = list.indexOf(project.name);
+        if (fromIdx >= 0 && toIdx >= 0) {
+          list.splice(fromIdx, 1);
+          list.splice(toIdx, 0, draggedProject);
+          savePinnedProjects(list);
+          renderProjects();
+        }
+      });
+
+      const pinIdx = pinnedList.indexOf(project.name);
+      if (pinIdx > 0) {
+        const moveLeftBtn = document.createElement("button");
+        moveLeftBtn.type = "button";
+        moveLeftBtn.className = "project-move-btn";
+        moveLeftBtn.title = `Move ${project.name} left in pinned order`;
+        moveLeftBtn.innerHTML = "◀";
+        moveLeftBtn.setAttribute("aria-label", `Move ${project.name} left`);
+        moveLeftBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          movePinnedProject(project.name, -1);
+        });
+        chip.append(moveLeftBtn);
+      }
+    }
 
     const btn = document.createElement("button");
     btn.type = "button";
@@ -1665,6 +2102,24 @@ function renderProjects() {
       ? `${project.path} · ${new Date(project.mtimeMs).toLocaleString()}`
       : project.path;
     btn.addEventListener("click", () => cdTo(project.path, project.name));
+    chip.append(btn);
+
+    if (isPinned) {
+      const pinIdx = pinnedList.indexOf(project.name);
+      if (pinIdx < pinnedList.length - 1) {
+        const moveRightBtn = document.createElement("button");
+        moveRightBtn.type = "button";
+        moveRightBtn.className = "project-move-btn";
+        moveRightBtn.title = `Move ${project.name} right in pinned order`;
+        moveRightBtn.innerHTML = "▶";
+        moveRightBtn.setAttribute("aria-label", `Move ${project.name} right`);
+        moveRightBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          movePinnedProject(project.name, 1);
+        });
+        chip.append(moveRightBtn);
+      }
+    }
 
     const pinBtn = document.createElement("button");
     pinBtn.type = "button";
@@ -1677,7 +2132,7 @@ function renderProjects() {
       togglePinProject(project.name);
     });
 
-    chip.append(btn, pinBtn);
+    chip.append(pinBtn);
     projectBar.append(chip);
   }
 }
@@ -1754,8 +2209,17 @@ document.getElementById("btn-last-project").addEventListener("click", goLastProj
 document.querySelectorAll("[data-run]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const cmd = btn.getAttribute("data-run");
+    const badge = btn.getAttribute("data-badge") || cmd;
     sendCommand(cmd);
-    if (cmd) setWatermark(cmd);
+    if (badge) setWatermark(badge);
+  });
+});
+
+document.querySelectorAll("[data-effort]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const level = btn.getAttribute("data-effort");
+    if (!level) return;
+    sendCommand(`/effort ${level}`);
   });
 });
 
@@ -1885,9 +2349,47 @@ watermarkInput.addEventListener("keydown", (event) => {
   }
 });
 
+if (btnBadgeEmoji) btnBadgeEmoji.addEventListener("click", openEmojiPicker);
+if (emojiPickerClose) emojiPickerClose.addEventListener("click", closeEmojiPicker);
+if (emojiPickerModal) {
+  emojiPickerModal.addEventListener("click", (event) => {
+    if (event.target === emojiPickerModal) closeEmojiPicker();
+  });
+}
+if (emojiSearchInput) {
+  emojiSearchInput.addEventListener("input", (e) => {
+    renderEmojiPicker(activeEmojiCategory, e.target.value);
+  });
+}
+if (emojiCatTabs) {
+  emojiCatTabs.addEventListener("click", (e) => {
+    const btn = e.target.closest(".emoji-tab-btn");
+    if (!btn) return;
+    activeEmojiCategory = btn.getAttribute("data-cat") || "all";
+    document.querySelectorAll(".emoji-tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    renderEmojiPicker(activeEmojiCategory, emojiSearchInput ? emojiSearchInput.value : "");
+  });
+}
+document.querySelectorAll(".quick-emoji-chip").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const em = btn.getAttribute("data-emoji");
+    if (em) insertEmojiToWatermark(em);
+  });
+});
+if (btnEmojiClearBadge) {
+  btnEmojiClearBadge.addEventListener("click", () => {
+    setWatermark("");
+    closeEmojiPicker();
+  });
+}
+
 projectFilter.addEventListener("input", renderProjects);
 document.getElementById("btn-sort-name").addEventListener("click", () => setProjectSort("name"));
 document.getElementById("btn-sort-latest").addEventListener("click", () => setProjectSort("latest"));
+const btnPinnedSortAz = document.getElementById("btn-pinned-sort-az");
+if (btnPinnedSortAz) btnPinnedSortAz.addEventListener("click", sortPinnedProjectsAZ);
+const btnPinnedReverse = document.getElementById("btn-pinned-reverse");
+if (btnPinnedReverse) btnPinnedReverse.addEventListener("click", reversePinnedProjects);
 guideBtn.addEventListener("click", openGuide);
 guideClose.addEventListener("click", closeGuide);
 guideEl.addEventListener("click", (event) => {
@@ -1928,6 +2430,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (dictating) {
     stopDictation();
+    return;
+  }
+  if (emojiPickerModal && !emojiPickerModal.hidden) {
+    closeEmojiPicker();
     return;
   }
   if (netModalEl && !netModalEl.hidden) {

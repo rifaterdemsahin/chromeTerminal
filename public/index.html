@@ -53,22 +53,18 @@
 
       <div class="panel-dock" id="panel-dock" role="toolbar" aria-label="Collapsible panels">
         <span class="menu-label">Panels</span>
-        <button type="button" id="btn-collapse-all" class="accent" title="Hide Menu, Projects, Badge, Theme, and About">📦 Collapse all</button>
+        <button type="button" id="btn-collapse-all" class="accent" title="Hide Menu, Projects, Agents, Badge, Theme, Help, and About">📦 Collapse all</button>
         <button type="button" id="btn-expand-all" title="Show every chrome panel">📂 Expand all</button>
         <button type="button" class="theme-btn" data-panel-toggle="menu">🧭 Menu</button>
         <button type="button" class="theme-btn" data-panel-toggle="projects">📁 Projects</button>
+        <button type="button" class="theme-btn" data-panel-toggle="agents">🤖 Agents</button>
         <button type="button" class="theme-btn" data-panel-toggle="badge">🏷️ Badge</button>
         <button type="button" class="theme-btn" data-panel-toggle="theme">🎨 Theme</button>
+        <button type="button" class="theme-btn" data-panel-toggle="help">❓ Help</button>
         <button type="button" class="theme-btn" data-panel-toggle="blurb">📝 About</button>
       </div>
 
       <nav class="menu" data-panel="menu" aria-label="Terminal actions">
-        <div class="menu-group">
-          <span class="menu-label">Help</span>
-          <button type="button" id="btn-guide" class="accent">📖 Guide</button>
-          <a class="nav-link accent" href="features.html">✨ Features</a>
-          <a class="nav-link" href="macos-start.html">🍎 Login</a>
-        </div>
         <div class="menu-group">
           <span class="menu-label">Go</span>
           <button type="button" data-cd="$HOME">🏠 Home</button>
@@ -78,13 +74,24 @@
         <div class="menu-group">
           <label class="menu-label" for="project-filter">Projects</label>
           <input id="project-filter" type="search" placeholder="🔍 Filter projects…" autocomplete="off" />
-          <button type="button" id="btn-sort-name" class="theme-btn" title="Sort projects A–Z">🔤 A–Z</button>
-          <button type="button" id="btn-sort-latest" class="theme-btn" title="Sort projects by last modified">🕒 Latest</button>
+          <button type="button" id="btn-sort-name" class="theme-btn" title="Sort all projects A–Z">🔤 A–Z</button>
+          <button type="button" id="btn-sort-latest" class="theme-btn" title="Sort all projects by last modified">🕒 Latest</button>
+          <button type="button" id="btn-pinned-sort-az" class="theme-btn" title="Sort pinned projects A–Z">📌 🔤</button>
+          <button type="button" id="btn-pinned-reverse" class="theme-btn" title="Reverse order of pinned projects">📌 🔄</button>
         </div>
+        <button type="button" class="panel-close-btn" data-panel-close="menu" title="Collapse Menu">✕</button>
+      </nav>
+
+      <div class="project-bar-wrap" data-panel="projects">
+        <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
+        <button type="button" class="panel-close-btn" data-panel-close="projects" title="Collapse Projects">✕</button>
+      </div>
+
+      <div class="theme-bar agents-bar" data-panel="agents" role="region" aria-label="Agent tools and shortcuts">
         <div class="menu-group">
           <span class="menu-label">Run</span>
-          <button type="button" class="accent" data-run="grok">🤖 grok</button>
-          <button type="button" class="accent" data-run="agy">✨ agy</button>
+          <button type="button" class="accent" data-run="grok --effort medium --permission-mode acceptEdits" data-badge="grok" title="Run grok in shell (medium effort, accept edits)">🤖 grok</button>
+          <button type="button" class="accent" data-run="agy --effort medium --mode accept-edits" data-badge="agy" title="Run agy in shell (medium effort, accept edits)">✨ agy</button>
           <button
             type="button"
             id="btn-ls5"
@@ -92,6 +99,12 @@
           >
             📋 ls5
           </button>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">Effort</span>
+          <button type="button" data-effort="low" title="Send /effort low">🐢 low</button>
+          <button type="button" data-effort="medium" title="Send /effort medium">⚡ medium</button>
+          <button type="button" data-effort="high" title="Send /effort high">🚀 high</button>
         </div>
         <div class="menu-group">
           <span class="menu-label">Pick</span>
@@ -105,25 +118,46 @@
           <button type="button" data-key="tab" title="Tab">⇥ Tab</button>
           <button type="button" data-key="shift-tab" title="Shift+Tab">⇤ Shift+Tab</button>
         </div>
-        <button type="button" class="panel-close-btn" data-panel-close="menu" title="Collapse Menu">✕</button>
-      </nav>
-
-      <div class="project-bar-wrap" data-panel="projects">
-        <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
-        <button type="button" class="panel-close-btn" data-panel-close="projects" title="Collapse Projects">✕</button>
+        <div class="menu-group">
+          <span class="menu-label">Limits</span>
+          <a
+            class="nav-link accent"
+            href="https://gemini.google.com/u/1/usage?pageId=none"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Check Gemini AI Usage & Rate Limits"
+          >
+            📊 Usage limits
+          </a>
+        </div>
+        <button type="button" class="panel-close-btn" data-panel-close="agents" title="Collapse Agents">✕</button>
       </div>
 
       <div class="theme-bar badge-bar" data-panel="badge">
         <label class="menu-label" for="watermark-input">🏷️ Badge</label>
-        <input
-          id="watermark-input"
-          type="text"
-          maxlength="48"
-          placeholder="Where am I? e.g. neso, grok, chromeTerminal"
-          autocomplete="off"
-        />
+        <div class="badge-input-group">
+          <input
+            id="watermark-input"
+            type="text"
+            maxlength="48"
+            placeholder="Where am I? e.g. 🚀 neso, 🤖 grok"
+            autocomplete="off"
+          />
+          <button type="button" id="btn-badge-emoji" class="badge-emoji-btn" title="Pick an emoji for the badge" aria-label="Emoji Picker">😀</button>
+        </div>
         <button type="button" id="btn-watermark-set" class="accent" title="Set the iTerm-style badge">✅ Set</button>
         <button type="button" id="btn-watermark-clear" title="Hide the badge">🚫 Clear</button>
+
+        <div class="quick-emojis-bar" title="Quick emoji presets">
+          <button type="button" class="quick-emoji-chip" data-emoji="🤖" title="🤖 Robot">🤖</button>
+          <button type="button" class="quick-emoji-chip" data-emoji="🚀" title="🚀 Rocket">🚀</button>
+          <button type="button" class="quick-emoji-chip" data-emoji="✨" title="✨ Sparkles">✨</button>
+          <button type="button" class="quick-emoji-chip" data-emoji="💻" title="💻 Laptop">💻</button>
+          <button type="button" class="quick-emoji-chip" data-emoji="🔥" title="🔥 Fire">🔥</button>
+          <button type="button" class="quick-emoji-chip" data-emoji="⚡" title="⚡ Fast">⚡</button>
+          <button type="button" class="quick-emoji-chip" data-emoji="🛠️" title="🛠️ Tools">🛠️</button>
+        </div>
+
         <label class="menu-label" for="commit-msg">git</label>
         <input
           id="commit-msg"
@@ -152,6 +186,23 @@
           <span class="lint info">● info</span>
         </span>
         <button type="button" class="panel-close-btn" data-panel-close="theme" title="Collapse Theme">✕</button>
+      </div>
+
+      <div class="theme-bar help-bar" data-panel="help" role="region" aria-label="Help shortcuts">
+        <span class="menu-label">❓ Help</span>
+        <button type="button" id="btn-guide" class="accent" title="Open the interactive chromeTerminal guide">📖 Guide</button>
+        <a class="nav-link accent" href="features.html" title="Full chromeTerminal features list">✨ Features</a>
+        <a class="nav-link" href="macos-start.html" title="macOS Start at Login walkthrough">🍎 Login</a>
+        <a
+          class="nav-link"
+          href="https://gemini.google.com/u/1/usage?pageId=none"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Check Gemini AI Usage & Rate Limits"
+        >
+          📊 Usage limits
+        </a>
+        <button type="button" class="panel-close-btn" data-panel-close="help" title="Collapse Help">✕</button>
       </div>
 
       <div class="blurb" data-panel="blurb">
@@ -314,6 +365,45 @@
       </div>
     </aside>
 
+    <aside id="emoji-picker-modal" class="guide emoji-picker-overlay" hidden>
+      <div class="guide-panel emoji-picker-panel" role="dialog" aria-labelledby="emoji-picker-title">
+        <div class="guide-head emoji-picker-head">
+          <div class="emoji-picker-title-wrap">
+            <h1 id="emoji-picker-title">😀 Badge Emoji Picker</h1>
+          </div>
+          <button type="button" id="emoji-picker-close">Close</button>
+        </div>
+
+        <div class="emoji-search-bar">
+          <input
+            id="emoji-search-input"
+            type="search"
+            placeholder="🔍 Search emojis (e.g. rocket, star, bug, mac, bot)..."
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="emoji-cat-tabs" id="emoji-cat-tabs" role="tablist">
+          <button type="button" class="emoji-tab-btn active" data-cat="all">🌟 All</button>
+          <button type="button" class="emoji-tab-btn" data-cat="recent">🕒 Recent</button>
+          <button type="button" class="emoji-tab-btn" data-cat="dev">💻 Dev &amp; Tech</button>
+          <button type="button" class="emoji-tab-btn" data-cat="smileys">😀 Mood</button>
+          <button type="button" class="emoji-tab-btn" data-cat="objects">🎯 Objects</button>
+          <button type="button" class="emoji-tab-btn" data-cat="nature">🌿 Nature</button>
+          <button type="button" class="emoji-tab-btn" data-cat="status">🚩 Status</button>
+        </div>
+
+        <div class="emoji-picker-content" id="emoji-picker-content">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="emoji-picker-footer">
+          <span class="emoji-picker-tip">💡 Click any emoji to add to your watermark badge</span>
+          <button type="button" id="btn-emoji-clear-badge" class="theme-btn" title="Clear current watermark badge">🚫 Clear Badge</button>
+        </div>
+      </div>
+    </aside>
+
     <aside id="prompts" class="guide" hidden>
       <div class="guide-panel prompt-panel" role="dialog" aria-labelledby="prompts-title">
         <div class="guide-head">
@@ -393,7 +483,7 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>⛶ Fullscreen</strong> — fill the display (Esc to leave). <strong>📦 Collapse all</strong> hides About/Menu/Theme/Badge/Projects. <strong>📂 Expand all</strong> shows them. <strong>🧘 Focus</strong> toggles the same. The <strong>Panels</strong> row toggles each strip; that state is saved.</li>
             <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>. <strong>↩️ Last project</strong> — <code>cd ~/projects</code>, run <code>ls -ant</code>, then <code>cd</code> into the newest folder.</li>
             <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only). <strong>🕒 Latest</strong> sorts by folder modified time; <strong>🔤 A–Z</strong> is name order.</li>
-            <li><strong>🤖 grok / ✨ agy</strong> — type that command and Enter in the live shell.</li>
+            <li><strong>🤖 grok / ✨ agy</strong> — launches Grok (<code>grok --effort medium --permission-mode acceptEdits</code>) or Antigravity (<code>agy --effort medium --mode accept-edits</code>) directly in medium reasoning effort and accept edits mode.</li>
             <li><strong>📚 Prompts</strong> — title bar, next to 💾 Save. Library of reusable prompts. Insert or Send into the PTY. Add your own (saved here). Built-ins are in <code>public/prompts.json</code>.</li>
             <li><strong>📋 ls5</strong> — newest 5 directory entries (<code>ls -ant</code>, skip the total line, first 5).</li>
             <li><strong>⏱ Session time</strong> — in the title bar, hours and minutes this shell has been on (from when the PTY started; reconnects keep the same clock).</li>
