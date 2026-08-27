@@ -1119,7 +1119,10 @@ function goLastProject() {
     `cd ${shellQuote(root)} && ls -ant && newest=$(ls -1td */ 2>/dev/null | head -n 1) && if [ -n "$newest" ]; then cd -- "$newest" && printf '\\n📂 last project → %s\\n' "$PWD"; else printf '\\n(no project folders)\\n'; fi`
   );
   const newest = [...(catalog.projects || [])].sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0))[0];
-  if (newest) setWatermark(newest.name);
+  if (newest) {
+    setWatermark(newest.name);
+    moveProjectToFront(newest.name);
+  }
 }
 
 function fit() {
@@ -1955,6 +1958,19 @@ function savePinnedProjects(list) {
   localStorage.setItem(PINNED_PROJECTS_KEY, JSON.stringify(list));
 }
 
+function moveProjectToFront(name) {
+  if (!name) return;
+  const list = loadPinnedProjects();
+  const idx = list.indexOf(name);
+  if (idx === 0) return;
+  if (idx > 0) {
+    list.splice(idx, 1);
+  }
+  list.unshift(name);
+  savePinnedProjects(list);
+  renderProjects();
+}
+
 function togglePinProject(name) {
   const list = loadPinnedProjects();
   const idx = list.indexOf(name);
@@ -2101,7 +2117,10 @@ function renderProjects() {
     btn.title = project.mtimeMs
       ? `${project.path} · ${new Date(project.mtimeMs).toLocaleString()}`
       : project.path;
-    btn.addEventListener("click", () => cdTo(project.path, project.name));
+    btn.addEventListener("click", () => {
+      cdTo(project.path, project.name);
+      moveProjectToFront(project.name);
+    });
     chip.append(btn);
 
     if (isPinned) {
