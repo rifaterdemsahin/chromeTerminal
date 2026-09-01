@@ -191,7 +191,7 @@ app.get("/api/check-ai", async (req, res) => {
   // 1. Local AI CLI Tools Load & Version Diagnostic
   const customEnv = {
     ...process.env,
-    PATH: `${process.env.PATH || ""}:${os.homedir()}/.local/bin:${os.homedir()}/.grok/bin:/opt/homebrew/bin:/usr/local/bin`,
+    PATH: `${process.env.PATH || ""}:${os.homedir()}/.nvm/versions/node/v22.22.0/bin:${os.homedir()}/.local/bin:${os.homedir()}/.grok/bin:/opt/homebrew/bin:/usr/local/bin`,
   };
 
   const cliTools = [
@@ -221,6 +221,15 @@ app.get("/api/check-ai", async (req, res) => {
       icon: "🤖",
       helloCmd: "grok --effort medium --permission-mode acceptEdits",
       desc: "xAI Grok TUI & Agentic CLI",
+    },
+    {
+      id: "deepseek",
+      name: "DeepSeek (kilo)",
+      bin: "kilo",
+      args: ["--version"],
+      icon: "🐋",
+      helloCmd: "kilo",
+      desc: "DeepSeek via Kilo Code Agent",
     },
     {
       id: "gemini",
@@ -386,6 +395,77 @@ app.get("/api/check-ai", async (req, res) => {
     apisReachableCount,
     apisTotalCount: providerResults.length,
     results: providerResults,
+  });
+});
+
+app.get("/api/test-ai-hello", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
+  const customEnv = {
+    ...process.env,
+    PATH: `${process.env.PATH || ""}:${os.homedir()}/.nvm/versions/node/v22.22.0/bin:${os.homedir()}/.local/bin:${os.homedir()}/.grok/bin:/opt/homebrew/bin:/usr/local/bin`,
+  };
+
+  const toolId = req.query.tool || "all";
+  const cliTools = [
+    { id: "agy", name: "Antigravity CLI (agy)", bin: "agy", args: ["--version"], icon: "✨", helloCmd: "agy --effort medium --mode accept-edits" },
+    { id: "claude", name: "Claude Code (claude)", bin: "claude", args: ["--version"], icon: "🎭", helloCmd: "claude --model sonnet --effort medium --dangerously-skip-permissions" },
+    { id: "grok", name: "xAI Grok (grok)", bin: "grok", args: ["--version"], icon: "🤖", helloCmd: "grok --effort medium --permission-mode acceptEdits" },
+    { id: "deepseek", name: "DeepSeek (kilo)", bin: "kilo", args: ["--version"], icon: "🐋", helloCmd: "kilo" },
+    { id: "gemini", name: "Google Gemini CLI (gemini)", bin: "gemini", args: ["--version"], icon: "🌟", helloCmd: "gemini -p 'Hello from chromeTerminal!'" },
+    { id: "ollama", name: "Ollama Local (ollama)", bin: "ollama", args: ["--version"], icon: "🦙", helloCmd: "ollama run llama3 'Hello'" },
+  ];
+
+  const targetTools = toolId === "all" ? cliTools : cliTools.filter((t) => t.id === toolId);
+
+  const tests = await Promise.all(
+    targetTools.map(async (t) => {
+      const start = performance.now();
+      try {
+        const { stdout, stderr } = await execFileAsync(t.bin, t.args, {
+          env: customEnv,
+          timeout: 4000,
+        });
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        const out = (stdout || stderr || "").trim().split("\n")[0] || "OK";
+        return {
+          id: t.id,
+          name: t.name,
+          icon: t.icon,
+          bin: t.bin,
+          helloCmd: t.helloCmd,
+          working: true,
+          statusText: "Working ✅",
+          durationMs,
+          output: out,
+        };
+      } catch (err) {
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        return {
+          id: t.id,
+          name: t.name,
+          icon: t.icon,
+          bin: t.bin,
+          helloCmd: t.helloCmd,
+          working: false,
+          statusText: "Failed ❌",
+          durationMs,
+          error: err.message,
+        };
+      }
+    })
+  );
+
+  res.json({
+    ok: true,
+    timestamp: Date.now(),
+    testedCount: tests.length,
+    workingCount: tests.filter((t) => t.working).length,
+    tests,
   });
 });
 

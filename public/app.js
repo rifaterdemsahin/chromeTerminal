@@ -97,6 +97,7 @@ const btnSbCd = document.getElementById("btn-sb-cd");
 const btnSbAgy = document.getElementById("btn-sb-agy");
 const btnSbGrok = document.getElementById("btn-sb-grok");
 const btnSbClaude = document.getElementById("btn-sb-claude");
+const btnSbDeepseek = document.getElementById("btn-sb-deepseek");
 const btnSbPap = document.getElementById("btn-sb-pap");
 const btnSbPull = document.getElementById("btn-sb-pull");
 const btnSbPush = document.getElementById("btn-sb-push");
@@ -1774,14 +1775,36 @@ function closeAiTestModal() {
   if (isLocal) term.focus();
 }
 
-function sendAiHello(customText = "Hello from chromeTerminal! Please give a 1-line hello status.") {
+function sendAiHello(customText = "Hello from chromeTerminal! Please give a 1-line hello status.", toolId = null) {
   if (!connected) {
-    setStatus("🔴 Connect to shell first to send Hello");
-    return;
+    connect();
   }
   closeAiTestModal();
+  term.focus();
   sendInput(`${customText}\n`);
   setStatus(`▶️ Sent Hello prompt to terminal shell`);
+
+  if (isLocal) {
+    const token = tokenFromUrl();
+    const q = token ? `&token=${encodeURIComponent(token)}` : "";
+    const toolParam = toolId ? `?tool=${encodeURIComponent(toolId)}${q}` : `?tool=all${q}`;
+    fetch(`/api/test-ai-hello${toolParam}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok && data.tests) {
+          for (const t of data.tests) {
+            const found = aiState.tools.find((x) => x.id === t.id);
+            if (found && t.working) {
+              found.working = true;
+              found.statusText = "Working ✅";
+            }
+          }
+          renderAiTestResults(aiState);
+          setStatus(`✅ AI Hello test passed (${data.workingCount}/${data.testedCount} working)`);
+        }
+      })
+      .catch((err) => console.warn("[ai-hello] Test failed:", err));
+  }
 }
 
 async function checkAiConnections(openModalOnComplete = false) {
@@ -1805,11 +1828,12 @@ async function checkAiConnections(openModalOnComplete = false) {
       data = await res.json();
     } else {
       const fallbackTools = [
-        { id: "agy", name: "Antigravity CLI (agy)", bin: "agy", icon: "✨", ok: true, version: "v1.1.23", durationMs: 45, statusText: "Loaded (Local/CLI)", helloCmd: "agy" },
-        { id: "claude", name: "Claude Code (claude)", bin: "claude", icon: "🎭", ok: true, version: "v2.1.257", durationMs: 14, statusText: "Loaded (Local/CLI)", helloCmd: "claude" },
-        { id: "grok", name: "xAI Grok (grok)", bin: "grok", icon: "🤖", ok: true, version: "v1.0.13", durationMs: 12, statusText: "Loaded (Local/CLI)", helloCmd: "grok" },
-        { id: "gemini", name: "Google Gemini CLI (gemini)", bin: "gemini", icon: "🌟", ok: true, version: "v0.46.0", durationMs: 80, statusText: "Loaded (Local/CLI)", helloCmd: "gemini" },
-        { id: "ollama", name: "Ollama Local (ollama)", bin: "ollama", icon: "🦙", ok: true, version: "v0.32.15", durationMs: 15, statusText: "Client Ready", helloCmd: "ollama" },
+        { id: "agy", name: "Antigravity CLI (agy)", bin: "agy", icon: "✨", ok: true, version: "v1.1.23", durationMs: 45, statusText: "Loaded (Local/CLI)", helloCmd: "agy", working: true },
+        { id: "claude", name: "Claude Code (claude)", bin: "claude", icon: "🎭", ok: true, version: "v2.1.257", durationMs: 14, statusText: "Loaded (Local/CLI)", helloCmd: "claude", working: true },
+        { id: "grok", name: "xAI Grok (grok)", bin: "grok", icon: "🤖", ok: true, version: "v1.0.13", durationMs: 12, statusText: "Loaded (Local/CLI)", helloCmd: "grok", working: true },
+        { id: "deepseek", name: "DeepSeek (kilo)", bin: "kilo", icon: "🐋", ok: true, version: "v7.3.45", durationMs: 15, statusText: "Loaded (Local/CLI)", helloCmd: "kilo", working: true },
+        { id: "gemini", name: "Google Gemini CLI (gemini)", bin: "gemini", icon: "🌟", ok: true, version: "v0.46.0", durationMs: 80, statusText: "Loaded (Local/CLI)", helloCmd: "gemini", working: true },
+        { id: "ollama", name: "Ollama Local (ollama)", bin: "ollama", icon: "🦙", ok: true, version: "v0.32.15", durationMs: 15, statusText: "Client Ready", helloCmd: "ollama", working: true },
       ];
       const fallbackProviders = [
         { id: "gemini", name: "Google Gemini API", host: "generativelanguage.googleapis.com", icon: "✨", notes: "Google AI Studio API" },
@@ -1856,8 +1880,8 @@ async function checkAiConnections(openModalOnComplete = false) {
       );
       data = {
         ok: true,
-        toolsLoadedCount: 5,
-        toolsTotalCount: 5,
+        toolsLoadedCount: 6,
+        toolsTotalCount: 6,
         tools: fallbackTools,
         apisReachableCount: results.filter((r) => r.ok).length,
         apisTotalCount: results.length,
@@ -1865,7 +1889,13 @@ async function checkAiConnections(openModalOnComplete = false) {
       };
     }
 
-    aiState.tools = data.tools || [];
+    aiState.tools = (data.tools || []).map((t) => {
+      const prev = aiState.tools.find((x) => x.id === t.id);
+      return {
+        ...t,
+        working: prev && prev.working !== undefined ? prev.working : t.ok,
+      };
+    });
     aiState.toolsLoadedCount = data.toolsLoadedCount || (data.tools ? data.tools.filter((t) => t.ok).length : 0);
     aiState.toolsTotalCount = data.toolsTotalCount || (data.tools ? data.tools.length : 0);
     aiState.results = data.results || [];
@@ -1890,21 +1920,22 @@ async function checkAiConnections(openModalOnComplete = false) {
 
 function renderAiTestResults(state) {
   const { tools, toolsLoadedCount, toolsTotalCount, results, apisReachableCount, apisTotalCount } = state;
+  const workingToolsCount = tools.filter((t) => t.working).length;
 
   if (testingAiSummaryChip) {
     const isAllGood = toolsLoadedCount >= toolsTotalCount - 1;
-    testingAiSummaryChip.textContent = `✨ AI Tools: ${toolsLoadedCount}/${toolsTotalCount} Ready · APIs ${apisReachableCount}/${apisTotalCount}`;
+    testingAiSummaryChip.textContent = `✨ AI Tools: ${toolsLoadedCount}/${toolsTotalCount} Ready (${workingToolsCount} Working ✅) · APIs ${apisReachableCount}/${apisTotalCount}`;
     testingAiSummaryChip.className = `testing-stat-chip ${isAllGood ? "stat-good" : "stat-warn"}`;
   }
 
   if (aiTestModalPill) {
     const isAllGood = toolsLoadedCount >= toolsTotalCount - 1;
     aiTestModalPill.className = `net-pill ${isAllGood ? "net-pill-good" : "net-pill-fair"}`;
-    aiTestModalPill.textContent = isAllGood ? `🟢 ${toolsLoadedCount}/${toolsTotalCount} AI Tools Loaded` : `🟡 ${toolsLoadedCount}/${toolsTotalCount} Loaded`;
+    aiTestModalPill.textContent = isAllGood ? `🟢 ${workingToolsCount}/${toolsTotalCount} AI Tools Working ✅` : `🟡 ${toolsLoadedCount}/${toolsTotalCount} Loaded`;
   }
 
   if (aiDiagTimestamp) {
-    aiDiagTimestamp.textContent = `Last checked: ${new Date().toLocaleTimeString()} · AI CLI Tools: ${toolsLoadedCount}/${toolsTotalCount} Loaded · Gateways: ${apisReachableCount}/${apisTotalCount} Online`;
+    aiDiagTimestamp.textContent = `Last checked: ${new Date().toLocaleTimeString()} · AI CLI Tools: ${toolsLoadedCount}/${toolsTotalCount} Loaded (${workingToolsCount} Working ✅) · Gateways: ${apisReachableCount}/${apisTotalCount} Online`;
   }
 
   // Render overview cards (combines tools and APIs)
@@ -1914,8 +1945,9 @@ function renderAiTestResults(state) {
       const card = document.createElement("div");
       card.className = "ai-stat-card";
       const isOk = tool.ok;
-      const statusBadgeClass = isOk ? "badge-online" : "badge-offline";
-      const statusBadgeText = isOk ? "Loaded" : "Unavailable";
+      const isWorking = tool.working;
+      const statusBadgeClass = isWorking ? "badge-online" : (isOk ? "badge-online" : "badge-offline");
+      const statusBadgeText = isWorking ? "Working ✅" : (isOk ? "Loaded ⚡" : "Unavailable");
       const timeStr = isOk && tool.durationMs !== undefined ? `${tool.durationMs}ms` : "--";
 
       card.innerHTML = `
@@ -1936,8 +1968,9 @@ function renderAiTestResults(state) {
     for (const tool of (tools || [])) {
       const tr = document.createElement("tr");
       const isOk = tool.ok;
-      const statusTagClass = isOk ? "net-tag-ok" : "net-tag-err";
-      const statusLabel = isOk ? "Loaded ⚡" : (tool.error || "Missing");
+      const isWorking = tool.working;
+      const statusTagClass = isWorking ? "net-tag-ok" : (isOk ? "net-tag-ok" : "net-tag-err");
+      const statusLabel = isWorking ? "Working ✅" : (isOk ? "Loaded ⚡" : (tool.error || "Missing"));
       const loadStr = tool.durationMs !== undefined ? `${tool.durationMs} ms` : "--";
 
       tr.innerHTML = `
@@ -1947,7 +1980,7 @@ function renderAiTestResults(state) {
         <td>${loadStr}</td>
         <td><span class="net-tag ${statusTagClass}">${escapeHtml(statusLabel)}</span></td>
         <td>
-          <button type="button" class="accent azure-action-btn btn-tool-send-hello" data-hello="${escapeHtml(tool.helloCmd || tool.bin)}" title="Run in terminal">💬 Test Hello</button>
+          <button type="button" class="accent azure-action-btn btn-tool-send-hello" data-tool-id="${escapeHtml(tool.id)}" data-hello="${escapeHtml(tool.helloCmd || tool.bin)}" title="Run in terminal">💬 Test Hello</button>
         </td>
       `;
       aiToolsTableTbody.appendChild(tr);
@@ -1956,10 +1989,30 @@ function renderAiTestResults(state) {
     aiToolsTableTbody.querySelectorAll(".btn-tool-send-hello").forEach((btn) => {
       btn.addEventListener("click", () => {
         const helloCmd = btn.getAttribute("data-hello");
+        const toolId = btn.getAttribute("data-tool-id");
         closeAiTestModal();
         if (helloCmd) {
           sendCommand(helloCmd);
           setStatus(`▶️ Started ${helloCmd} in shell`);
+        }
+        if (isLocal && toolId) {
+          const token = tokenFromUrl();
+          const q = token ? `&token=${encodeURIComponent(token)}` : "";
+          fetch(`/api/test-ai-hello?tool=${encodeURIComponent(toolId)}${q}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.ok && data.tests && data.tests.length) {
+                const resTest = data.tests[0];
+                const found = aiState.tools.find((x) => x.id === toolId);
+                if (found && resTest.working) {
+                  found.working = true;
+                  found.statusText = "Working ✅";
+                  renderAiTestResults(aiState);
+                  setStatus(`✅ ${found.name} verified Working!`);
+                }
+              }
+            })
+            .catch(() => {});
         }
       });
     });
@@ -3412,6 +3465,12 @@ if (btnSbClaude) {
   btnSbClaude.addEventListener("click", () => {
     sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && claude --model sonnet --effort medium --dangerously-skip-permissions");
     setWatermark("🧠 claude");
+  });
+}
+if (btnSbDeepseek) {
+  btnSbDeepseek.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && kilo");
+    setWatermark("🧠 deepseek");
   });
 }
 if (btnSbPap) {
