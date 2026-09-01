@@ -92,6 +92,49 @@ const btnAssignPortsMenu = document.getElementById("btn-assign-ports-menu");
 const btnSyncAzureMenu = document.getElementById("btn-sync-azure-menu");
 const btnAgentMainPage = document.getElementById("btn-agent-main-page");
 
+// Second Brain Panel
+const btnSbCd = document.getElementById("btn-sb-cd");
+const btnSbAgy = document.getElementById("btn-sb-agy");
+const btnSbGrok = document.getElementById("btn-sb-grok");
+const btnSbClaude = document.getElementById("btn-sb-claude");
+const btnSbPap = document.getElementById("btn-sb-pap");
+const btnSbPull = document.getElementById("btn-sb-pull");
+const btnSbPush = document.getElementById("btn-sb-push");
+const btnSbArchive = document.getElementById("btn-sb-archive");
+const btnSbLaunchDashboard = document.getElementById("btn-sb-launch-dashboard");
+
+// Testing Panel
+const btnTestingSpeedModal = document.getElementById("btn-testing-speed-modal");
+const btnTestingRunSpeed = document.getElementById("btn-testing-run-speed");
+const btnTestingRetestAll = document.getElementById("btn-testing-retest-all");
+const testingNetSummaryChip = document.getElementById("testing-net-summary-chip");
+const btnTestingCheckAi = document.getElementById("btn-testing-check-ai");
+const testingAiSummaryChip = document.getElementById("testing-ai-summary-chip");
+const btnTestingCheckInfra = document.getElementById("btn-testing-check-infra");
+const btnOpenProxmox = document.getElementById("btn-open-proxmox");
+const btnOpenN8n = document.getElementById("btn-open-n8n");
+const testingInfraSummaryChip = document.getElementById("testing-infra-summary-chip");
+
+// AI Test Modal
+const aiTestModal = document.getElementById("ai-test-modal");
+const aiTestModalClose = document.getElementById("ai-test-modal-close");
+const aiTestModalPill = document.getElementById("ai-test-modal-pill");
+const aiOverviewCards = document.getElementById("ai-overview-cards");
+const aiTableTbody = document.getElementById("ai-table-tbody");
+const aiDiagTimestamp = document.getElementById("ai-diag-timestamp");
+const btnRetestAiModal = document.getElementById("btn-retest-ai-modal");
+const btnCopyAiDiag = document.getElementById("btn-copy-ai-diag");
+
+// Infra Test Modal
+const infraTestModal = document.getElementById("infra-test-modal");
+const infraTestModalClose = document.getElementById("infra-test-modal-close");
+const infraTestModalPill = document.getElementById("infra-test-modal-pill");
+const infraOverviewCards = document.getElementById("infra-overview-cards");
+const infraTableTbody = document.getElementById("infra-table-tbody");
+const infraDiagTimestamp = document.getElementById("infra-diag-timestamp");
+const btnRetestInfraModal = document.getElementById("btn-retest-infra-modal");
+const btnCopyInfraDiag = document.getElementById("btn-copy-infra-diag");
+
 let azureSyncState = null;
 let projectStatesCatalog = {};
 let currentCwdPath = "";
@@ -561,7 +604,7 @@ const WATERMARK_KEY = "chromeTerminal.watermark";
 const PANELS_KEY = "chromeTerminal.panels";
 const CUSTOM_PROMPTS_KEY = "chromeTerminal.customPrompts";
 const PINNED_PROJECTS_KEY = "chromeTerminal.pinnedProjects";
-const PANEL_IDS = ["menu", "projects", "agents", "badge", "theme", "help", "blurb"];
+const PANEL_IDS = ["menu", "projects", "agents", "secondbrain", "testing", "badge", "theme", "help", "blurb"];
 const SORT_KEY = "chromeTerminal.projectSort";
 let projectSort = localStorage.getItem(SORT_KEY) === "latest" ? "latest" : "name";
 
@@ -1654,6 +1697,14 @@ function updateNetUI() {
   if (netDiagTimestamp) {
     netDiagTimestamp.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
   }
+
+  if (testingNetSummaryChip) {
+    const pingStr = pingMs !== null ? `${pingMs}ms` : "--ms";
+    const dnsStr = dnsAvgMs !== null ? `${dnsAvgMs}ms` : "--ms";
+    const speedStr = speedMbps !== null ? `${speedMbps} Mbps` : "-- Mbps";
+    testingNetSummaryChip.textContent = `📶 ${pingStr} · DNS ${dnsStr} · ${speedStr}`;
+    testingNetSummaryChip.className = `testing-stat-chip ${score >= 65 ? "stat-good" : score >= 40 ? "stat-warn" : "stat-bad"}`;
+  }
 }
 
 function copyNetworkReport() {
@@ -1682,6 +1733,431 @@ function copyNetworkReport() {
       }, 2000);
     }
   });
+}
+
+/**
+ * AI Connection Diagnostics
+ */
+const aiState = {
+  results: [],
+  reachableCount: 0,
+  totalCount: 0,
+  avgDurationMs: null,
+  lastTestedAt: null,
+  isTesting: false,
+};
+
+function openAiTestModal() {
+  if (aiTestModal) aiTestModal.hidden = false;
+  if (!aiState.lastTestedAt || Date.now() - aiState.lastTestedAt > 30000) {
+    checkAiConnections();
+  }
+}
+
+function closeAiTestModal() {
+  if (aiTestModal) aiTestModal.hidden = true;
+  if (isLocal) term.focus();
+}
+
+async function checkAiConnections(openModalOnComplete = false) {
+  if (aiState.isTesting) return;
+  aiState.isTesting = true;
+  if (testingAiSummaryChip) {
+    testingAiSummaryChip.textContent = "✨ AI: Testing…";
+    testingAiSummaryChip.className = "testing-stat-chip stat-warn";
+  }
+  if (btnTestingCheckAi) btnTestingCheckAi.textContent = "⏳ Testing AI…";
+  if (btnRetestAiModal) btnRetestAiModal.textContent = "⏳ Testing…";
+
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    let data;
+
+    if (isLocal) {
+      const res = await fetch(`/api/check-ai${q}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    } else {
+      const fallbackProviders = [
+        { id: "gemini", name: "Google Gemini", host: "generativelanguage.googleapis.com", icon: "✨", notes: "Google AI Studio API" },
+        { id: "claude", name: "Anthropic Claude", host: "api.anthropic.com", icon: "🎭", notes: "Claude API Gateway" },
+        { id: "openai", name: "OpenAI", host: "api.openai.com", icon: "🧠", notes: "OpenAI API Gateway" },
+        { id: "grok", name: "xAI Grok", host: "api.x.ai", icon: "🤖", notes: "xAI API Gateway" },
+        { id: "openrouter", name: "OpenRouter", host: "openrouter.ai", icon: "🔀", notes: "OpenRouter Gateway" },
+      ];
+      const results = await Promise.all(
+        fallbackProviders.map(async (p) => {
+          const start = performance.now();
+          try {
+            const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(p.host)}&type=A`, { cache: "no-store" });
+            const durationMs = Math.round((performance.now() - start) * 10) / 10;
+            const json = await res.json();
+            const ips = (json.Answer || []).filter((a) => a.type === 1).map((a) => a.data);
+            return {
+              id: p.id,
+              name: p.name,
+              icon: p.icon,
+              host: p.host,
+              notes: p.notes,
+              ok: true,
+              status: 200,
+              statusText: "DNS Reachable",
+              durationMs,
+              dnsIps: ips.slice(0, 3),
+            };
+          } catch (err) {
+            const durationMs = Math.round((performance.now() - start) * 10) / 10;
+            return {
+              id: p.id,
+              name: p.name,
+              icon: p.icon,
+              host: p.host,
+              notes: p.notes,
+              ok: false,
+              error: err.message,
+              durationMs,
+              dnsIps: [],
+            };
+          }
+        })
+      );
+      data = {
+        ok: true,
+        reachableCount: results.filter((r) => r.ok).length,
+        totalCount: results.length,
+        avgDurationMs: Math.round(results.filter((r) => r.ok).reduce((s, r) => s + r.durationMs, 0) / (results.filter((r) => r.ok).length || 1)),
+        results,
+      };
+    }
+
+    aiState.results = data.results || [];
+    aiState.reachableCount = data.reachableCount || 0;
+    aiState.totalCount = data.totalCount || data.results.length;
+    aiState.avgDurationMs = data.avgDurationMs || 0;
+    aiState.lastTestedAt = Date.now();
+
+    renderAiTestResults(aiState);
+  } catch (err) {
+    console.error("[ai-check] Error:", err);
+    if (testingAiSummaryChip) {
+      testingAiSummaryChip.textContent = `✨ AI: Error (${err.message})`;
+      testingAiSummaryChip.className = "testing-stat-chip stat-bad";
+    }
+  } finally {
+    aiState.isTesting = false;
+    if (btnTestingCheckAi) btnTestingCheckAi.textContent = "🤖 Check AI APIs";
+    if (btnRetestAiModal) btnRetestAiModal.textContent = "🔄 Retest AI APIs";
+    if (openModalOnComplete) openAiTestModal();
+  }
+}
+
+function renderAiTestResults(state) {
+  const { results, reachableCount, totalCount, avgDurationMs } = state;
+
+  if (testingAiSummaryChip) {
+    const isAllGood = reachableCount >= totalCount - 1;
+    testingAiSummaryChip.textContent = `✨ AI: ${reachableCount}/${totalCount} (${avgDurationMs || "--"}ms)`;
+    testingAiSummaryChip.className = `testing-stat-chip ${isAllGood ? "stat-good" : "stat-warn"}`;
+  }
+
+  if (aiTestModalPill) {
+    const isAllGood = reachableCount >= totalCount - 1;
+    aiTestModalPill.className = `net-pill ${isAllGood ? "net-pill-good" : "net-pill-fair"}`;
+    aiTestModalPill.textContent = isAllGood ? `🟢 ${reachableCount}/${totalCount} Reachable` : `🟡 ${reachableCount}/${totalCount} Reachable`;
+  }
+
+  if (aiDiagTimestamp) {
+    aiDiagTimestamp.textContent = `Last checked: ${new Date().toLocaleTimeString()} (Avg RTT: ${avgDurationMs || "--"}ms)`;
+  }
+
+  if (aiOverviewCards) {
+    aiOverviewCards.innerHTML = "";
+    for (const item of results) {
+      const card = document.createElement("div");
+      card.className = "ai-stat-card";
+      const isOk = item.ok;
+      const statusBadgeClass = isOk ? "badge-online" : "badge-offline";
+      const statusBadgeText = isOk ? "Online" : "Offline";
+      const latencyText = isOk && item.durationMs !== undefined ? `${item.durationMs}ms` : "--";
+      const ipText = (item.dnsIps && item.dnsIps.length) ? item.dnsIps.join(", ") : (item.error || "No IP");
+
+      card.innerHTML = `
+        <div class="ai-stat-head">
+          <span>${item.icon || "🤖"} ${escapeHtml(item.name)}</span>
+          <span class="ai-stat-badge ${statusBadgeClass}">${statusBadgeText}</span>
+        </div>
+        <div class="ai-stat-time">${latencyText}</div>
+        <div class="ai-stat-sub" title="${escapeHtml(item.host)} · ${escapeHtml(ipText)}">${escapeHtml(item.host)} · ${escapeHtml(ipText)}</div>
+      `;
+      aiOverviewCards.appendChild(card);
+    }
+  }
+
+  if (aiTableTbody) {
+    aiTableTbody.innerHTML = "";
+    for (const item of results) {
+      const tr = document.createElement("tr");
+      const isOk = item.ok;
+      const statusTagClass = isOk ? "net-tag-ok" : "net-tag-err";
+      const statusLabel = isOk ? (item.status ? `${item.status} OK` : "Reachable") : (item.error || "Error");
+      const ips = (item.dnsIps || []).join(", ") || "--";
+      const latencyStr = item.durationMs !== undefined ? `${item.durationMs} ms` : "--";
+
+      tr.innerHTML = `
+        <td><strong>${item.icon || "🤖"} ${escapeHtml(item.name)}</strong></td>
+        <td><code>${escapeHtml(item.host)}</code></td>
+        <td><span class="net-tag ${statusTagClass}">${escapeHtml(statusLabel)}</span></td>
+        <td>${latencyStr}</td>
+        <td style="font-family:monospace; font-size:11px">${escapeHtml(ips)}</td>
+        <td style="color:var(--muted); font-size:12px">${escapeHtml(item.notes || "")}</td>
+      `;
+      aiTableTbody.appendChild(tr);
+    }
+  }
+}
+
+async function copyAiReport() {
+  const lines = [
+    "=== chromeTerminal AI Model & API Connectivity Diagnostic ===",
+    `Timestamp: ${new Date().toISOString()}`,
+    `Reachable: ${aiState.reachableCount} / ${aiState.totalCount}`,
+    `Average Latency: ${aiState.avgDurationMs || "--"} ms`,
+    "",
+    "Provider Matrix:",
+    ...aiState.results.map((r) => `- [${r.ok ? "ONLINE" : "OFFLINE"}] ${r.name} (${r.host}) -> ${r.durationMs || "--"}ms (IPs: ${(r.dnsIps || []).join(", ") || r.error || "none"})`),
+  ];
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    setStatus("📋 Copied AI connectivity report to clipboard");
+  } catch (err) {
+    setStatus("🔴 Copy failed: " + err.message);
+  }
+}
+
+/**
+ * Infrastructure & Services Diagnostics (Proxmox, n8n, etc.)
+ */
+const infraState = {
+  results: [],
+  onlineCount: 0,
+  totalCount: 0,
+  lastTestedAt: null,
+  isTesting: false,
+};
+
+function openInfraTestModal() {
+  if (infraTestModal) infraTestModal.hidden = false;
+  if (!infraState.lastTestedAt || Date.now() - infraState.lastTestedAt > 30000) {
+    checkInfraConnections();
+  }
+}
+
+function closeInfraTestModal() {
+  if (infraTestModal) infraTestModal.hidden = true;
+  if (isLocal) term.focus();
+}
+
+async function checkInfraConnections(openModalOnComplete = false) {
+  if (infraState.isTesting) return;
+  infraState.isTesting = true;
+  if (testingInfraSummaryChip) {
+    testingInfraSummaryChip.textContent = "🖥️ Infra: Testing…";
+    testingInfraSummaryChip.className = "testing-stat-chip stat-warn";
+  }
+  if (btnTestingCheckInfra) btnTestingCheckInfra.textContent = "⏳ Testing Infra…";
+  if (btnRetestInfraModal) btnRetestInfraModal.textContent = "⏳ Testing…";
+
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    let data;
+
+    if (isLocal) {
+      const res = await fetch(`/api/check-infra${q}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    } else {
+      const fallbackServices = [
+        { id: "proxmox", name: "Proxmox Virtual Environment", host: "proxmox.rifaterdemsahin.com", url: "https://proxmox.rifaterdemsahin.com", icon: "🖥️", notes: "Proxmox VE Remote" },
+        { id: "n8n", name: "n8n Automation Engine", host: "n8n.rifaterdemsahin.com", url: "https://n8n.rifaterdemsahin.com", icon: "⚡", notes: "Automation Engine" },
+      ];
+      const results = await Promise.all(
+        fallbackServices.map(async (s) => {
+          const start = performance.now();
+          try {
+            const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(s.host)}&type=A`, { cache: "no-store" });
+            const durationMs = Math.round((performance.now() - start) * 10) / 10;
+            const json = await res.json();
+            const ips = (json.Answer || []).filter((a) => a.type === 1).map((a) => a.data);
+            return {
+              id: s.id,
+              name: s.name,
+              host: s.host,
+              url: s.url,
+              icon: s.icon,
+              ok: true,
+              status: 200,
+              statusText: "Reachable",
+              durationMs,
+              dnsIps: ips.slice(0, 3),
+            };
+          } catch (err) {
+            const durationMs = Math.round((performance.now() - start) * 10) / 10;
+            return {
+              id: s.id,
+              name: s.name,
+              host: s.host,
+              url: s.url,
+              icon: s.icon,
+              ok: false,
+              error: err.message,
+              durationMs,
+              dnsIps: [],
+            };
+          }
+        })
+      );
+      data = {
+        ok: true,
+        onlineCount: results.filter((r) => r.ok).length,
+        totalCount: results.length,
+        results,
+      };
+    }
+
+    infraState.results = data.results || [];
+    infraState.onlineCount = data.onlineCount || 0;
+    infraState.totalCount = data.totalCount || data.results.length;
+    infraState.lastTestedAt = Date.now();
+
+    renderInfraTestResults(infraState);
+  } catch (err) {
+    console.error("[infra-check] Error:", err);
+    if (testingInfraSummaryChip) {
+      testingInfraSummaryChip.textContent = `🖥️ Infra: Error (${err.message})`;
+      testingInfraSummaryChip.className = "testing-stat-chip stat-bad";
+    }
+  } finally {
+    infraState.isTesting = false;
+    if (btnTestingCheckInfra) btnTestingCheckInfra.textContent = "🌐 Check Infra";
+    if (btnRetestInfraModal) btnRetestInfraModal.textContent = "🔄 Retest Services";
+    if (openModalOnComplete) openInfraTestModal();
+  }
+}
+
+function renderInfraTestResults(state) {
+  const { results, onlineCount, totalCount } = state;
+
+  if (testingInfraSummaryChip) {
+    const isAllGood = onlineCount >= 2;
+    testingInfraSummaryChip.textContent = `🖥️ Infra: ${onlineCount}/${totalCount} Online`;
+    testingInfraSummaryChip.className = `testing-stat-chip ${isAllGood ? "stat-good" : "stat-warn"}`;
+  }
+
+  if (infraTestModalPill) {
+    const isAllGood = onlineCount >= 2;
+    infraTestModalPill.className = `net-pill ${isAllGood ? "net-pill-good" : "net-pill-fair"}`;
+    infraTestModalPill.textContent = isAllGood ? `🟢 ${onlineCount}/${totalCount} Services Online` : `🟡 ${onlineCount}/${totalCount} Online`;
+  }
+
+  if (infraDiagTimestamp) {
+    infraDiagTimestamp.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
+  }
+
+  if (infraOverviewCards) {
+    infraOverviewCards.innerHTML = "";
+    for (const item of results) {
+      const card = document.createElement("div");
+      card.className = "infra-stat-card";
+      const isOk = item.ok;
+      const statusBadgeClass = isOk ? "badge-online" : "badge-offline";
+      const statusBadgeText = isOk ? "Online" : "Offline";
+      const latencyText = isOk && item.durationMs !== undefined ? `${item.durationMs}ms` : "--";
+      const ipText = (item.dnsIps && item.dnsIps.length) ? item.dnsIps.join(", ") : (item.error || "Local");
+
+      card.innerHTML = `
+        <div class="infra-stat-head">
+          <span>${item.icon || "🌐"} ${escapeHtml(item.name)}</span>
+          <span class="infra-stat-badge ${statusBadgeClass}">${statusBadgeText}</span>
+        </div>
+        <div class="infra-stat-time">${latencyText}</div>
+        <div class="infra-stat-sub" title="${escapeHtml(item.url || item.host)}">${escapeHtml(item.host)} · ${escapeHtml(ipText)}</div>
+      `;
+      infraOverviewCards.appendChild(card);
+    }
+  }
+
+  if (infraTableTbody) {
+    infraTableTbody.innerHTML = "";
+    for (const item of results) {
+      const tr = document.createElement("tr");
+      const isOk = item.ok;
+      const statusTagClass = isOk ? "net-tag-ok" : "net-tag-err";
+      const statusLabel = isOk ? (item.status ? `${item.status} OK` : "Online") : (item.error || "Unreachable");
+      const ips = (item.dnsIps || []).join(", ") || "--";
+      const latencyStr = item.durationMs !== undefined ? `${item.durationMs} ms` : "--";
+
+      tr.innerHTML = `
+        <td><strong>${item.icon || "🌐"} ${escapeHtml(item.name)}</strong></td>
+        <td><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="nav-link">${escapeHtml(item.url)}</a></td>
+        <td><span class="net-tag ${statusTagClass}">${escapeHtml(statusLabel)}</span></td>
+        <td>${latencyStr}</td>
+        <td style="font-family:monospace; font-size:11px">${escapeHtml(ips)}</td>
+        <td>
+          <button type="button" class="accent azure-action-btn btn-infra-open" data-url="${escapeHtml(item.url)}" title="Open in Google Chrome">🌐 Chrome</button>
+        </td>
+      `;
+      infraTableTbody.appendChild(tr);
+    }
+
+    infraTableTbody.querySelectorAll(".btn-infra-open").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const url = btn.getAttribute("data-url");
+        if (url) openProjectPageInChrome(url);
+      });
+    });
+  }
+}
+
+async function copyInfraReport() {
+  const lines = [
+    "=== chromeTerminal Infrastructure & Services Diagnostic ===",
+    `Timestamp: ${new Date().toISOString()}`,
+    `Online: ${infraState.onlineCount} / ${infraState.totalCount}`,
+    "",
+    "Services Matrix:",
+    ...infraState.results.map((r) => `- [${r.ok ? "ONLINE" : "OFFLINE"}] ${r.name} (${r.url}) -> ${r.durationMs || "--"}ms (Status: ${r.status || r.error || "unknown"}, IPs: ${(r.dnsIps || []).join(", ")})`),
+  ];
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    setStatus("📋 Copied Infrastructure report to clipboard");
+  } catch (err) {
+    setStatus("🔴 Copy failed: " + err.message);
+  }
+}
+
+/**
+ * Second Brain Dashboard Launch
+ */
+async function launchSecondBrainDashboard() {
+  const dashUrl = "http://localhost:8899";
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    if (isLocal) {
+      await fetch(`/api/secondbrain/launch-dashboard${q}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: dashUrl }),
+      });
+    }
+    window.open(dashUrl, "_blank", "noopener");
+    setStatus("🧠 Launched Second Brain Dashboard on http://localhost:8899 in Google Chrome");
+  } catch (err) {
+    window.open(dashUrl, "_blank", "noopener");
+    setStatus("🧠 Opened Second Brain Dashboard");
+  }
 }
 
 function openPrompts() {
@@ -2783,6 +3259,88 @@ if (btnRunSpeedTest) btnRunSpeedTest.addEventListener("click", runSpeedTest);
 if (btnRetestAll) btnRetestAll.addEventListener("click", runAllNetworkTests);
 if (btnCopyNetDiag) btnCopyNetDiag.addEventListener("click", copyNetworkReport);
 
+// Testing Panel listeners
+if (btnTestingSpeedModal) btnTestingSpeedModal.addEventListener("click", openNetModal);
+if (btnTestingRunSpeed) btnTestingRunSpeed.addEventListener("click", runSpeedTest);
+if (btnTestingRetestAll) btnTestingRetestAll.addEventListener("click", runAllNetworkTests);
+if (btnTestingCheckAi) btnTestingCheckAi.addEventListener("click", () => checkAiConnections(true));
+if (btnRetestAiModal) btnRetestAiModal.addEventListener("click", () => checkAiConnections(false));
+if (aiTestModalClose) aiTestModalClose.addEventListener("click", closeAiTestModal);
+if (aiTestModal) {
+  aiTestModal.addEventListener("click", (event) => {
+    if (event.target === aiTestModal) closeAiTestModal();
+  });
+}
+if (btnCopyAiDiag) btnCopyAiDiag.addEventListener("click", copyAiReport);
+
+if (btnTestingCheckInfra) btnTestingCheckInfra.addEventListener("click", () => checkInfraConnections(true));
+if (btnRetestInfraModal) btnRetestInfraModal.addEventListener("click", () => checkInfraConnections(false));
+if (infraTestModalClose) infraTestModalClose.addEventListener("click", closeInfraTestModal);
+if (infraTestModal) {
+  infraTestModal.addEventListener("click", (event) => {
+    if (event.target === infraTestModal) closeInfraTestModal();
+  });
+}
+if (btnCopyInfraDiag) btnCopyInfraDiag.addEventListener("click", copyInfraReport);
+if (btnOpenProxmox) {
+  btnOpenProxmox.addEventListener("click", () => openProjectPageInChrome("https://proxmox.rifaterdemsahin.com"));
+}
+if (btnOpenN8n) {
+  btnOpenN8n.addEventListener("click", () => openProjectPageInChrome("https://n8n.rifaterdemsahin.com"));
+}
+
+// Second Brain Panel listeners
+if (btnSbCd) {
+  btnSbCd.addEventListener("click", () => {
+    cdTo("/Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain", "vault");
+  });
+}
+if (btnSbAgy) {
+  btnSbAgy.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && agy --effort medium --mode accept-edits");
+    setWatermark("🧠 agy");
+  });
+}
+if (btnSbGrok) {
+  btnSbGrok.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && grok --effort medium --permission-mode acceptEdits");
+    setWatermark("🧠 grok");
+  });
+}
+if (btnSbClaude) {
+  btnSbClaude.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && claude --model sonnet --effort medium --dangerously-skip-permissions");
+    setWatermark("🧠 claude");
+  });
+}
+if (btnSbPap) {
+  btnSbPap.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles && ./archive-pull-push.sh");
+    setStatus("⚡ Running PAP (Pull · Push · Archive)…");
+  });
+}
+if (btnSbPull) {
+  btnSbPull.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles && ./archive-pull-push.sh");
+    setStatus("⬇️ Pulling vault…");
+  });
+}
+if (btnSbPush) {
+  btnSbPush.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles && ./archive-pull-push.sh --no-pull");
+    setStatus("⬆️ Pushing vault…");
+  });
+}
+if (btnSbArchive) {
+  btnSbArchive.addEventListener("click", () => {
+    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles && ./archive-pull-push.sh --with-consistency-check");
+    setStatus("📦 Archiving vault…");
+  });
+}
+if (btnSbLaunchDashboard) {
+  btnSbLaunchDashboard.addEventListener("click", launchSecondBrainDashboard);
+}
+
 if (azureSyncBadge) azureSyncBadge.addEventListener("click", openAzureSyncModal);
 if (btnAzureModal) btnAzureModal.addEventListener("click", openAzureSyncModal);
 if (azureSyncClose) azureSyncClose.addEventListener("click", closeAzureSyncModal);
@@ -2857,6 +3415,14 @@ document.addEventListener("keydown", (event) => {
   }
   if (netModalEl && !netModalEl.hidden) {
     closeNetModal();
+    return;
+  }
+  if (aiTestModal && !aiTestModal.hidden) {
+    closeAiTestModal();
+    return;
+  }
+  if (infraTestModal && !infraTestModal.hidden) {
+    closeInfraTestModal();
     return;
   }
   if (!promptsEl.hidden) {
@@ -2976,7 +3542,11 @@ window.addEventListener("load", () => {
   });
   checkPing();
   checkDns();
+  checkAiConnections();
+  checkInfraConnections();
   setInterval(checkPing, 8000);
+  setInterval(checkAiConnections, 45000);
+  setInterval(checkInfraConnections, 45000);
   fetchAzureSyncStatus();
   setInterval(fetchAzureSyncStatus, 15000);
   if (!isLocal) openGuide();

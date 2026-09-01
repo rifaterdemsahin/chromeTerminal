@@ -1640,5 +1640,128 @@ button[data-effort="high"]:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Second Brain & Testing Bars */
+.secondbrain-bar,
+.testing-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--menu);
+  border-bottom: 1px solid var(--border);
+}
 
+.testing-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--chip);
+  border: 1px solid var(--border);
+  color: var(--text);
+  margin-left: 2px;
+}
 
+.testing-stat-chip.stat-good {
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.testing-stat-chip.stat-warn {
+  color: #eab308;
+  border-color: rgba(234, 179, 8, 0.4);
+}
+
+.testing-stat-chip.stat-bad {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* AI & Infra Modals */
+.ai-test-panel,
+.infra-test-panel {
+  width: min(880px, 100%);
+}
+
+.ai-overview-grid,
+.infra-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ai-stat-card,
+.infra-stat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-stat-card:hover,
+.infra-stat-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.ai-stat-head,
+.infra-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ai-stat-badge,
+.infra-stat-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-online {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge-offline {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-checking {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+.ai-stat-time,
+.infra-stat-time {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-stat-sub,
+.infra-stat-sub {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

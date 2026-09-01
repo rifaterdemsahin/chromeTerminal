@@ -181,6 +181,249 @@ app.get("/api/net-speed", (req, res) => {
   sendNext();
 });
 
+app.get("/api/check-ai", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
+  const providers = [
+    {
+      id: "gemini",
+      name: "Google Gemini",
+      host: "generativelanguage.googleapis.com",
+      url: "https://generativelanguage.googleapis.com",
+      icon: "✨",
+      notes: "Google AI Studio & Gemini API",
+    },
+    {
+      id: "claude",
+      name: "Anthropic Claude",
+      host: "api.anthropic.com",
+      url: "https://api.anthropic.com",
+      icon: "🎭",
+      notes: "Claude Sonnet & Opus Models",
+    },
+    {
+      id: "openai",
+      name: "OpenAI",
+      host: "api.openai.com",
+      url: "https://api.openai.com",
+      icon: "🧠",
+      notes: "GPT-4o, o1, o3-mini & Realtime API",
+    },
+    {
+      id: "grok",
+      name: "xAI Grok",
+      host: "api.x.ai",
+      url: "https://api.x.ai",
+      icon: "🤖",
+      notes: "Grok 2 / Grok 3 Reasoning Models",
+    },
+    {
+      id: "openrouter",
+      name: "OpenRouter",
+      host: "openrouter.ai",
+      url: "https://openrouter.ai/api/v1/models",
+      icon: "🔀",
+      notes: "Unified LLM Gateway",
+    },
+    {
+      id: "ollama",
+      name: "Ollama (Local)",
+      host: "127.0.0.1",
+      url: "http://127.0.0.1:11434/api/tags",
+      icon: "🦙",
+      notes: "Local LLM Inference Engine",
+    },
+  ];
+
+  const results = await Promise.all(
+    providers.map(async (p) => {
+      const start = performance.now();
+      let dnsIps = [];
+      try {
+        if (p.host !== "127.0.0.1" && p.host !== "localhost") {
+          dnsIps = await dns.promises.resolve4(p.host);
+        } else {
+          dnsIps = ["127.0.0.1"];
+        }
+      } catch (dnsErr) {
+        // DNS lookup may fail if host offline
+      }
+
+      try {
+        const response = await fetch(p.url, {
+          method: "GET",
+          signal: AbortSignal.timeout(4500),
+          headers: { "User-Agent": "chromeTerminal-ai-check/1.0" },
+        });
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        return {
+          id: p.id,
+          name: p.name,
+          icon: p.icon,
+          url: p.url,
+          host: p.host,
+          notes: p.notes,
+          ok: true,
+          status: response.status,
+          statusText: response.statusText,
+          durationMs,
+          dnsIps: dnsIps.slice(0, 3),
+        };
+      } catch (err) {
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        return {
+          id: p.id,
+          name: p.name,
+          icon: p.icon,
+          url: p.url,
+          host: p.host,
+          notes: p.notes,
+          ok: false,
+          error: err.message || "Unreachable",
+          durationMs,
+          dnsIps: dnsIps.slice(0, 3),
+        };
+      }
+    })
+  );
+
+  const reachableCount = results.filter((r) => r.ok).length;
+  const avgDurationMs =
+    reachableCount > 0
+      ? Math.round(
+          (results.filter((r) => r.ok).reduce((sum, r) => sum + r.durationMs, 0) / reachableCount) *
+            10
+        ) / 10
+      : null;
+
+  res.json({
+    ok: true,
+    timestamp: Date.now(),
+    reachableCount,
+    totalCount: results.length,
+    avgDurationMs,
+    results,
+  });
+});
+
+app.get("/api/check-infra", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
+  const services = [
+    {
+      id: "proxmox",
+      name: "Proxmox Virtual Environment",
+      url: "https://proxmox.rifaterdemsahin.com",
+      host: "proxmox.rifaterdemsahin.com",
+      icon: "🖥️",
+      notes: "Proxmox VE & Backup Remote",
+    },
+    {
+      id: "n8n",
+      name: "n8n Automation Engine",
+      url: "https://n8n.rifaterdemsahin.com",
+      host: "n8n.rifaterdemsahin.com",
+      icon: "⚡",
+      notes: "Workflow & Webhook Automation",
+    },
+    {
+      id: "secondbrain_dash",
+      name: "Second Brain Dashboard",
+      url: "http://localhost:8899",
+      host: "127.0.0.1",
+      icon: "🧠",
+      notes: "Vault Dashboard & Graph Server",
+    },
+    {
+      id: "terminal_pty",
+      name: "chromeTerminal PTY Backend",
+      url: `http://localhost:${PORT}/health`,
+      host: "127.0.0.1",
+      icon: "💻",
+      notes: "Local macOS Login Shell Daemon",
+    },
+  ];
+
+  const results = await Promise.all(
+    services.map(async (s) => {
+      const start = performance.now();
+      let dnsIps = [];
+      try {
+        if (s.host !== "127.0.0.1" && s.host !== "localhost") {
+          dnsIps = await dns.promises.resolve4(s.host);
+        } else {
+          dnsIps = ["127.0.0.1"];
+        }
+      } catch (dnsErr) {
+        // dns error
+      }
+
+      try {
+        const response = await fetch(s.url, {
+          method: "GET",
+          signal: AbortSignal.timeout(4500),
+          headers: { "User-Agent": "chromeTerminal-infra-check/1.0" },
+        });
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        return {
+          id: s.id,
+          name: s.name,
+          icon: s.icon,
+          url: s.url,
+          host: s.host,
+          notes: s.notes,
+          ok: true,
+          status: response.status,
+          statusText: response.statusText,
+          durationMs,
+          dnsIps: dnsIps.slice(0, 3),
+        };
+      } catch (err) {
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        return {
+          id: s.id,
+          name: s.name,
+          icon: s.icon,
+          url: s.url,
+          host: s.host,
+          notes: s.notes,
+          ok: false,
+          error: err.message || "Unreachable",
+          durationMs,
+          dnsIps: dnsIps.slice(0, 3),
+        };
+      }
+    })
+  );
+
+  const onlineCount = results.filter((r) => r.ok).length;
+  res.json({
+    ok: true,
+    timestamp: Date.now(),
+    onlineCount,
+    totalCount: results.length,
+    results,
+  });
+});
+
+app.post("/api/secondbrain/launch-dashboard", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const dashboardUrl = req.body?.url || "http://localhost:8899";
+  const result = await openPageInChrome(dashboardUrl);
+  res.json({ ok: true, url: dashboardUrl, ...result });
+});
+
 app.get("/api/projects", (req, res) => {
   if (!authorizedHttp(req)) {
     res.status(401).json({ error: "unauthorized" });

@@ -64,11 +64,13 @@
 
       <div class="panel-dock" id="panel-dock" role="toolbar" aria-label="Collapsible panels">
         <span class="menu-label">Panels</span>
-        <button type="button" id="btn-collapse-all" class="accent" title="Hide Menu, Projects, Agents, Badge, Theme, Help, and About">📦 Collapse all</button>
+        <button type="button" id="btn-collapse-all" class="accent" title="Hide all collapsible panels">📦 Collapse all</button>
         <button type="button" id="btn-expand-all" title="Show every chrome panel">📂 Expand all</button>
         <button type="button" class="theme-btn" data-panel-toggle="menu">🧭 Menu</button>
         <button type="button" class="theme-btn" data-panel-toggle="projects">📁 Projects</button>
         <button type="button" class="theme-btn" data-panel-toggle="agents">🤖 Agents</button>
+        <button type="button" class="theme-btn" data-panel-toggle="secondbrain">🧠 Second Brain</button>
+        <button type="button" class="theme-btn" data-panel-toggle="testing">🧪 Testing</button>
         <button type="button" class="theme-btn" data-panel-toggle="badge">🏷️ Badge</button>
         <button type="button" class="theme-btn" data-panel-toggle="theme">🎨 Theme</button>
         <button type="button" class="theme-btn" data-panel-toggle="help">❓ Help</button>
@@ -146,6 +148,51 @@
           </a>
         </div>
         <button type="button" class="panel-close-btn" data-panel-close="agents" title="Collapse Agents">✕</button>
+      </div>
+
+      <div class="theme-bar secondbrain-bar" data-panel="secondbrain" role="region" aria-label="Second Brain Vault Tools and PAP">
+        <div class="menu-group">
+          <span class="menu-label">🧠 Vault</span>
+          <button type="button" class="accent" id="btn-sb-cd" title="cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain">📁 cd Vault</button>
+          <button type="button" class="accent" id="btn-sb-agy" title="Start agy inside /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain/">✨ agy</button>
+          <button type="button" class="accent" id="btn-sb-grok" title="Start grok inside /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain/">🤖 grok</button>
+          <button type="button" class="accent" id="btn-sb-claude" title="Start claude inside /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain/">🎭 claude</button>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">⚡ PAP</span>
+          <button type="button" class="accent" id="btn-sb-pap" title="Execute archive-pull-push.sh (Full PAP: Pull ➔ Tidy ➔ Proxmox Backup ➔ GDrive Sync)">⚡ PAP Full</button>
+          <button type="button" id="btn-sb-pull" title="Run archive-pull-push.sh (Pull latest vault states)">⬇️ Pull</button>
+          <button type="button" id="btn-sb-push" title="Run archive-pull-push.sh --no-pull (Push changes to Proxmox & GDrive)">⬆️ Push</button>
+          <button type="button" id="btn-sb-archive" title="Run archive-pull-push.sh --with-consistency-check (Tidy, Archive & Backup)">📦 Archive</button>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">Dashboard</span>
+          <button type="button" class="accent" id="btn-sb-launch-dashboard" title="Launch Second Brain Dashboard in Google Chrome">📊 Launch Dashboard</button>
+        </div>
+        <button type="button" class="panel-close-btn" data-panel-close="secondbrain" title="Collapse Second Brain">✕</button>
+      </div>
+
+      <div class="theme-bar testing-bar" data-panel="testing" role="region" aria-label="Testing and connectivity checks">
+        <div class="menu-group">
+          <span class="menu-label">⚡ Internet</span>
+          <button type="button" class="accent" id="btn-testing-speed-modal" title="Open Speed &amp; Network Diagnostics modal">⚡ Speed &amp; Diag</button>
+          <button type="button" id="btn-testing-run-speed" title="Run live download speed benchmark">🚀 Test Speed</button>
+          <button type="button" id="btn-testing-retest-all" title="Retest latency, DNS and throughput">🔄 Retest Net</button>
+          <span class="testing-stat-chip" id="testing-net-summary-chip" title="Current latency and bandwidth">📶 --ms · DNS --ms · -- Mbps</span>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">🤖 AI APIs</span>
+          <button type="button" class="accent" id="btn-testing-check-ai" title="Check connection to Gemini, Claude, OpenAI, Grok, OpenRouter &amp; Ollama">🤖 Check AI APIs</button>
+          <span class="testing-stat-chip" id="testing-ai-summary-chip" title="AI connectivity status">✨ AI: Ready</span>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">🌐 Infra</span>
+          <button type="button" class="accent" id="btn-testing-check-infra" title="Check connection to proxmox.rifaterdemsahin.com and n8n.rifaterdemsahin.com">🌐 Check Infra</button>
+          <button type="button" id="btn-open-proxmox" title="Open proxmox.rifaterdemsahin.com in Google Chrome">🖥️ Proxmox</button>
+          <button type="button" id="btn-open-n8n" title="Open n8n.rifaterdemsahin.com in Google Chrome">⚡ n8n</button>
+          <span class="testing-stat-chip" id="testing-infra-summary-chip" title="Proxmox &amp; n8n status">🖥️ Infra: Ready</span>
+        </div>
+        <button type="button" class="panel-close-btn" data-panel-close="testing" title="Collapse Testing">✕</button>
       </div>
 
       <div class="theme-bar badge-bar" data-panel="badge">
@@ -380,6 +427,116 @@
       </div>
     </aside>
 
+    <aside id="ai-test-modal" class="guide" hidden>
+      <div class="guide-panel ai-test-panel" role="dialog" aria-labelledby="ai-test-modal-title">
+        <div class="guide-head">
+          <div class="net-modal-title-wrap">
+            <h1 id="ai-test-modal-title">🤖 AI Model &amp; API Connectivity</h1>
+            <span id="ai-test-modal-pill" class="net-pill net-pill-good">🟢 Checking…</span>
+          </div>
+          <button type="button" id="ai-test-modal-close">Close</button>
+        </div>
+
+        <p class="net-summary-text">
+          Real-time reachability, round-trip latency, and endpoint health diagnostics for Gemini, Claude, OpenAI, Grok, OpenRouter, and Ollama.
+        </p>
+
+        <div class="ai-overview-grid" id="ai-overview-cards">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="net-section-box">
+          <div class="net-section-header">
+            <h3>🤖 Provider Endpoint Matrix</h3>
+            <div class="net-test-actions">
+              <button type="button" id="btn-retest-ai-modal" class="accent">🔄 Retest AI APIs</button>
+            </div>
+          </div>
+          <div class="net-details-table-wrap">
+            <table class="net-table">
+              <thead>
+                <tr>
+                  <th>AI Provider</th>
+                  <th>Endpoint Host</th>
+                  <th>Status</th>
+                  <th>Latency (RTT)</th>
+                  <th>Resolved IP(s)</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="ai-table-tbody">
+                <tr>
+                  <td colspan="6" style="text-align:center; color:var(--muted)">Probing AI endpoints…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="net-diag-footer">
+          <div class="net-diag-info">
+            <span id="ai-diag-timestamp">Last checked: Just now</span>
+          </div>
+          <button type="button" id="btn-copy-ai-diag" class="theme-btn" title="Copy AI diagnostic report to clipboard">📋 Copy Report</button>
+        </div>
+      </div>
+    </aside>
+
+    <aside id="infra-test-modal" class="guide" hidden>
+      <div class="guide-panel infra-test-panel" role="dialog" aria-labelledby="infra-test-modal-title">
+        <div class="guide-head">
+          <div class="net-modal-title-wrap">
+            <h1 id="infra-test-modal-title">🌐 Infrastructure &amp; Service Health</h1>
+            <span id="infra-test-modal-pill" class="net-pill net-pill-good">🟢 Online</span>
+          </div>
+          <button type="button" id="infra-test-modal-close">Close</button>
+        </div>
+
+        <p class="net-summary-text">
+          Active reachability, SSL status, and response latency for Proxmox VE, n8n Automation Engine, Second Brain Dashboard, and local Terminal PTY.
+        </p>
+
+        <div class="infra-overview-grid" id="infra-overview-cards">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="net-section-box">
+          <div class="net-section-header">
+            <h3>🌐 Infrastructure Endpoint Health</h3>
+            <div class="net-test-actions">
+              <button type="button" id="btn-retest-infra-modal" class="accent">🔄 Retest Services</button>
+            </div>
+          </div>
+          <div class="net-details-table-wrap">
+            <table class="net-table">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th>URL / Host</th>
+                  <th>HTTP Status</th>
+                  <th>Latency</th>
+                  <th>Resolved IP(s)</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="infra-table-tbody">
+                <tr>
+                  <td colspan="6" style="text-align:center; color:var(--muted)">Checking services…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="net-diag-footer">
+          <div class="net-diag-info">
+            <span id="infra-diag-timestamp">Last checked: Just now</span>
+          </div>
+          <button type="button" id="btn-copy-infra-diag" class="theme-btn" title="Copy Infrastructure diagnostic report to clipboard">📋 Copy Report</button>
+        </div>
+      </div>
+    </aside>
+
     <aside id="emoji-picker-modal" class="guide emoji-picker-overlay" hidden>
       <div class="guide-panel emoji-picker-panel" role="dialog" aria-labelledby="emoji-picker-title">
         <div class="guide-head emoji-picker-head">
@@ -576,6 +733,8 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>Ctrl+C, Ctrl+C</strong> — two interrupts within 800ms disconnect this session (get out). A single Ctrl+C still goes to the shell.</li>
             <li><strong>🎨 Theme</strong> — pick a palette (saved in this browser). Native: <strong>🤖 Grok Night</strong> (Grok TUI magenta/dark), <strong>🌤️ Grok Day</strong>, <strong>✨ Antigravity</strong> (agy Solarized Dark — error/warn/ok lint colors). The ● error/warn/ok/info chips show those ANSI colors.</li>
             <li><strong>🏷️ Badge / pwd</strong> — the title bar shows the live shell working directory. The watermark tracks that path (short <code>~</code> form). You can still Set a label; the next <code>cd</code> updates both again.</li>
+            <li><strong>🧠 Second Brain</strong> — dedicated panel to launch AI agents (<code>agy</code>, <code>grok</code>, <code>claude</code>) directly in <code>/Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain/</code>, run <code>pap</code> (Pull · Push · Archive) sync workflow, and launch the local dashboard on port 8899.</li>
+            <li><strong>🧪 Testing</strong> — diagnostics panel with Internet Speed test, AI API model reachability probes (Gemini, Claude, OpenAI, Grok, OpenRouter, Ollama), and infrastructure health checks for <code>proxmox.rifaterdemsahin.com</code> and <code>n8n.rifaterdemsahin.com</code> with detailed modal popups.</li>
             <li><strong>⚡ Speed &amp; Quality</strong> — title bar badge and button. Displays live ping, DNS resolution latency, bandwidth speed, and overall connection quality score. Click to open the detailed modal popup with route pings (local, Cloudflare, Google), full DNS lookup metrics, and on-demand download speed tests.</li>
             <li><strong>📤 Commit · push · leave</strong> — at a shell prompt: <code>git add -A</code>, commit, <code>git push</code>. When push succeeds, wait 8 seconds (so you can read the output), then this session closes. If commit/push fails, you stay connected.</li>
           </ul>
