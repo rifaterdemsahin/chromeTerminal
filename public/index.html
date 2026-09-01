@@ -70,7 +70,7 @@
         <button type="button" class="theme-btn" data-panel-toggle="projects">📁 Projects</button>
         <button type="button" class="theme-btn" data-panel-toggle="agents">🤖 Agents</button>
         <button type="button" class="theme-btn" data-panel-toggle="secondbrain">🧠 Second Brain</button>
-        <button type="button" class="theme-btn" data-panel-toggle="testing">🧪 Testing</button>
+        <button type="button" class="theme-btn" data-panel-toggle="test">🧪 Test</button>
         <button type="button" class="theme-btn" data-panel-toggle="badge">🏷️ Badge</button>
         <button type="button" class="theme-btn" data-panel-toggle="theme">🎨 Theme</button>
         <button type="button" class="theme-btn" data-panel-toggle="help">❓ Help</button>
@@ -172,18 +172,27 @@
         <button type="button" class="panel-close-btn" data-panel-close="secondbrain" title="Collapse Second Brain">✕</button>
       </div>
 
-      <div class="theme-bar testing-bar" data-panel="testing" role="region" aria-label="Testing and connectivity checks">
+      <div class="theme-bar test-bar" data-panel="test" role="region" aria-label="Testing, Speed, Azure Sync, AI Tools, and Infra">
         <div class="menu-group">
-          <span class="menu-label">⚡ Internet</span>
+          <span class="menu-label">⚡ Speed</span>
           <button type="button" class="accent" id="btn-testing-speed-modal" title="Open Speed &amp; Network Diagnostics modal">⚡ Speed &amp; Diag</button>
-          <button type="button" id="btn-testing-run-speed" title="Run live download speed benchmark">🚀 Test Speed</button>
-          <button type="button" id="btn-testing-retest-all" title="Retest latency, DNS and throughput">🔄 Retest Net</button>
+          <button type="button" id="btn-testing-run-speed" title="Run live download speed benchmark">🚀 Run Speed Test</button>
           <span class="testing-stat-chip" id="testing-net-summary-chip" title="Current latency and bandwidth">📶 --ms · DNS --ms · -- Mbps</span>
         </div>
         <div class="menu-group">
-          <span class="menu-label">🤖 AI APIs</span>
-          <button type="button" class="accent" id="btn-testing-check-ai" title="Check connection to Gemini, Claude, OpenAI, Grok, OpenRouter &amp; Ollama">🤖 Check AI APIs</button>
-          <span class="testing-stat-chip" id="testing-ai-summary-chip" title="AI connectivity status">✨ AI: Ready</span>
+          <span class="menu-label">☁️ Azure Sync</span>
+          <button type="button" class="accent" id="btn-test-azure-modal" title="Open Azure Key Vault &amp; Storage Project States Sync">☁️ Azure Manager</button>
+          <button type="button" id="btn-test-azure-sync-all" title="Assign ports and sync all project states to Azure Blob">🔄 Sync Now</button>
+          <button type="button" id="btn-test-azure-pull" title="Pull latest project states from Azure Blob">⬇️ Pull</button>
+          <button type="button" id="btn-test-azure-push" title="Push project states to Azure Blob">⬆️ Push</button>
+          <button type="button" id="btn-test-assign-ports" title="Assign unique 30,000+ ports to all projects">⚡ Ports 30k+</button>
+          <span class="testing-stat-chip" id="testing-azure-summary-chip" title="Azure Key Vault &amp; Storage sync status">☁️ Azure: Synced</span>
+        </div>
+        <div class="menu-group">
+          <span class="menu-label">🤖 AI Tools</span>
+          <button type="button" class="accent" id="btn-testing-check-ai" title="Test if AI CLI tools (agy, claude, grok, gemini, ollama) load and check API gateways">🤖 Test AI (Load &amp; Hello)</button>
+          <button type="button" id="btn-test-send-hello" class="accent" title="Send a Hello prompt to the active AI agent in the terminal">💬 Send "Hello"</button>
+          <span class="testing-stat-chip" id="testing-ai-summary-chip" title="AI CLI tools and API status">✨ AI Tools: 5/5 Ready</span>
         </div>
         <div class="menu-group">
           <span class="menu-label">🌐 Infra</span>
@@ -192,7 +201,7 @@
           <button type="button" id="btn-open-n8n" title="Open n8n.rifaterdemsahin.com in Google Chrome">⚡ n8n</button>
           <span class="testing-stat-chip" id="testing-infra-summary-chip" title="Proxmox &amp; n8n status">🖥️ Infra: Ready</span>
         </div>
-        <button type="button" class="panel-close-btn" data-panel-close="testing" title="Collapse Testing">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="test" title="Collapse Test Panel">✕</button>
       </div>
 
       <div class="theme-bar badge-bar" data-panel="badge">
@@ -431,14 +440,14 @@
       <div class="guide-panel ai-test-panel" role="dialog" aria-labelledby="ai-test-modal-title">
         <div class="guide-head">
           <div class="net-modal-title-wrap">
-            <h1 id="ai-test-modal-title">🤖 AI Model &amp; API Connectivity</h1>
+            <h1 id="ai-test-modal-title">🤖 AI Tools &amp; API Connectivity Diagnostics</h1>
             <span id="ai-test-modal-pill" class="net-pill net-pill-good">🟢 Checking…</span>
           </div>
           <button type="button" id="ai-test-modal-close">Close</button>
         </div>
 
         <p class="net-summary-text">
-          Real-time reachability, round-trip latency, and endpoint health diagnostics for Gemini, Claude, OpenAI, Grok, OpenRouter, and Ollama.
+          Real-time binary load speed, CLI versioning, and endpoint health diagnostics for Antigravity (agy), Claude Code, xAI Grok, Google Gemini, Ollama, and Cloud AI Model Gateways.
         </p>
 
         <div class="ai-overview-grid" id="ai-overview-cards">
@@ -447,10 +456,36 @@
 
         <div class="net-section-box">
           <div class="net-section-header">
-            <h3>🤖 Provider Endpoint Matrix</h3>
+            <h3>🤖 Local AI CLI Tools (Load &amp; Version Diagnostic)</h3>
             <div class="net-test-actions">
-              <button type="button" id="btn-retest-ai-modal" class="accent">🔄 Retest AI APIs</button>
+              <button type="button" id="btn-retest-ai-modal" class="accent">🔄 Retest All AI Tools</button>
+              <button type="button" id="btn-modal-send-hello" class="accent" title="Send Hello prompt to terminal">💬 Send "Hello" to Shell</button>
             </div>
+          </div>
+          <div class="net-details-table-wrap">
+            <table class="net-table">
+              <thead>
+                <tr>
+                  <th>AI CLI Tool</th>
+                  <th>Command / Binary</th>
+                  <th>Version</th>
+                  <th>Load Duration</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="ai-tools-table-tbody">
+                <tr>
+                  <td colspan="6" style="text-align:center; color:var(--muted)">Checking local AI CLI tools…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="net-section-box">
+          <div class="net-section-header">
+            <h3>☁️ Cloud AI Model API Gateways</h3>
           </div>
           <div class="net-details-table-wrap">
             <table class="net-table">

@@ -188,10 +188,105 @@ app.get("/api/check-ai", async (req, res) => {
   }
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
+  // 1. Local AI CLI Tools Load & Version Diagnostic
+  const customEnv = {
+    ...process.env,
+    PATH: `${process.env.PATH || ""}:${os.homedir()}/.local/bin:${os.homedir()}/.grok/bin:/opt/homebrew/bin:/usr/local/bin`,
+  };
+
+  const cliTools = [
+    {
+      id: "agy",
+      name: "Antigravity CLI (agy)",
+      bin: "agy",
+      args: ["--version"],
+      icon: "✨",
+      helloCmd: "agy --effort medium --mode accept-edits",
+      desc: "Antigravity Agentic Pair Programmer",
+    },
+    {
+      id: "claude",
+      name: "Claude Code (claude)",
+      bin: "claude",
+      args: ["--version"],
+      icon: "🎭",
+      helloCmd: "claude --model sonnet --effort medium --dangerously-skip-permissions",
+      desc: "Anthropic Claude Code CLI",
+    },
+    {
+      id: "grok",
+      name: "xAI Grok (grok)",
+      bin: "grok",
+      args: ["--version"],
+      icon: "🤖",
+      helloCmd: "grok --effort medium --permission-mode acceptEdits",
+      desc: "xAI Grok TUI & Agentic CLI",
+    },
+    {
+      id: "gemini",
+      name: "Google Gemini CLI (gemini)",
+      bin: "gemini",
+      args: ["--version"],
+      icon: "🌟",
+      helloCmd: "gemini -p 'Hello from chromeTerminal!'",
+      desc: "Google Gemini CLI",
+    },
+    {
+      id: "ollama",
+      name: "Ollama Local (ollama)",
+      bin: "ollama",
+      args: ["--version"],
+      icon: "🦙",
+      helloCmd: "ollama run llama3 'Hello'",
+      desc: "Local Model Inference Engine",
+    },
+  ];
+
+  const toolsResults = await Promise.all(
+    cliTools.map(async (t) => {
+      const start = performance.now();
+      try {
+        const { stdout, stderr } = await execFileAsync(t.bin, t.args, {
+          env: customEnv,
+          timeout: 3500,
+        });
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        const versionOutput = (stdout || stderr || "").trim().split("\n")[0] || "Installed";
+        return {
+          id: t.id,
+          name: t.name,
+          bin: t.bin,
+          icon: t.icon,
+          desc: t.desc,
+          helloCmd: t.helloCmd,
+          ok: true,
+          version: versionOutput,
+          durationMs,
+          statusText: `Loaded in ${durationMs}ms`,
+        };
+      } catch (err) {
+        const durationMs = Math.round((performance.now() - start) * 10) / 10;
+        return {
+          id: t.id,
+          name: t.name,
+          bin: t.bin,
+          icon: t.icon,
+          desc: t.desc,
+          helloCmd: t.helloCmd,
+          ok: false,
+          error: err.message || "Not installed / failed",
+          durationMs,
+          statusText: "Unavailable",
+        };
+      }
+    })
+  );
+
+  // 2. Cloud AI Model API Connectivity
   const providers = [
     {
       id: "gemini",
-      name: "Google Gemini",
+      name: "Google Gemini API",
       host: "generativelanguage.googleapis.com",
       url: "https://generativelanguage.googleapis.com",
       icon: "✨",
@@ -199,7 +294,7 @@ app.get("/api/check-ai", async (req, res) => {
     },
     {
       id: "claude",
-      name: "Anthropic Claude",
+      name: "Anthropic Claude API",
       host: "api.anthropic.com",
       url: "https://api.anthropic.com",
       icon: "🎭",
@@ -207,7 +302,7 @@ app.get("/api/check-ai", async (req, res) => {
     },
     {
       id: "openai",
-      name: "OpenAI",
+      name: "OpenAI API",
       host: "api.openai.com",
       url: "https://api.openai.com",
       icon: "🧠",
@@ -215,7 +310,7 @@ app.get("/api/check-ai", async (req, res) => {
     },
     {
       id: "grok",
-      name: "xAI Grok",
+      name: "xAI Grok API",
       host: "api.x.ai",
       url: "https://api.x.ai",
       icon: "🤖",
@@ -223,32 +318,20 @@ app.get("/api/check-ai", async (req, res) => {
     },
     {
       id: "openrouter",
-      name: "OpenRouter",
+      name: "OpenRouter Gateway",
       host: "openrouter.ai",
       url: "https://openrouter.ai/api/v1/models",
       icon: "🔀",
       notes: "Unified LLM Gateway",
     },
-    {
-      id: "ollama",
-      name: "Ollama (Local)",
-      host: "127.0.0.1",
-      url: "http://127.0.0.1:11434/api/tags",
-      icon: "🦙",
-      notes: "Local LLM Inference Engine",
-    },
   ];
 
-  const results = await Promise.all(
+  const providerResults = await Promise.all(
     providers.map(async (p) => {
       const start = performance.now();
       let dnsIps = [];
       try {
-        if (p.host !== "127.0.0.1" && p.host !== "localhost") {
-          dnsIps = await dns.promises.resolve4(p.host);
-        } else {
-          dnsIps = ["127.0.0.1"];
-        }
+        dnsIps = await dns.promises.resolve4(p.host);
       } catch (dnsErr) {
         // DNS lookup may fail if host offline
       }
@@ -291,22 +374,18 @@ app.get("/api/check-ai", async (req, res) => {
     })
   );
 
-  const reachableCount = results.filter((r) => r.ok).length;
-  const avgDurationMs =
-    reachableCount > 0
-      ? Math.round(
-          (results.filter((r) => r.ok).reduce((sum, r) => sum + r.durationMs, 0) / reachableCount) *
-            10
-        ) / 10
-      : null;
+  const toolsLoadedCount = toolsResults.filter((t) => t.ok).length;
+  const apisReachableCount = providerResults.filter((p) => p.ok).length;
 
   res.json({
     ok: true,
     timestamp: Date.now(),
-    reachableCount,
-    totalCount: results.length,
-    avgDurationMs,
-    results,
+    toolsLoadedCount,
+    toolsTotalCount: toolsResults.length,
+    tools: toolsResults,
+    apisReachableCount,
+    apisTotalCount: providerResults.length,
+    results: providerResults,
   });
 });
 
