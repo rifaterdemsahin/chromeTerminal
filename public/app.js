@@ -1002,6 +1002,18 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
+// Some CLIs (Claude Code's TUI) enable xterm mouse-motion tracking (DECSET 1000/1002/1003 +
+// SGR 1006). xterm.js then reports every mouse move over the terminal back through onData —
+// the same channel as keystrokes — which floods the app's stdin with reports like
+// "\x1b[<35;51;12M" whenever the cursor merely passes over the terminal. This app has no use
+// for mouse reporting (no click-to-position, no drag-select forwarding), so strip it here.
+const SGR_MOUSE_RE = /\x1b\[<\d{1,3};\d{1,4};\d{1,4}[Mm]/g;
+const X10_MOUSE_RE = /\x1b\[M[\s\S]{3}/g;
+
+function stripMouseReports(data) {
+  return data.replace(SGR_MOUSE_RE, "").replace(X10_MOUSE_RE, "");
+}
+
 function sendCommand(command) {
   sendInput(`${command}\n`);
 }
@@ -3574,7 +3586,9 @@ async function pushToAzure() {
 
 term.onData((data) => {
   if (!connected) return;
-  if (data === "\x03") {
+  const filtered = stripMouseReports(data);
+  if (!filtered) return;
+  if (filtered === "\x03") {
     const now = Date.now();
     if (lastCtrlCAt && now - lastCtrlCAt < DOUBLE_CTRL_C_MS) {
       lastCtrlCAt = 0;
@@ -3585,7 +3599,7 @@ term.onData((data) => {
   } else {
     lastCtrlCAt = 0;
   }
-  send({ type: "input", data });
+  send({ type: "input", data: filtered });
 });
 
 window.addEventListener("resize", fit);
