@@ -812,6 +812,38 @@ app.get("/api/project-states", (req, res) => {
   });
 });
 
+// "Rerun last" state lives in the same local file / Azure blob as project states (meta.lastRun),
+// so it rides the existing Pull/Push/Sync Now flow instead of needing its own storage.
+app.get("/api/last-run", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const state = loadLocalProjectStates();
+  res.json({ ok: true, lastRun: (state.meta && state.meta.lastRun) || null });
+});
+
+app.post("/api/last-run", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const { cmd, badge } = req.body || {};
+  if (!cmd || typeof cmd !== "string") {
+    res.status(400).json({ ok: false, error: "cmd is required" });
+    return;
+  }
+  const state = loadLocalProjectStates();
+  const lastRun = { cmd, badge: typeof badge === "string" ? badge : "", savedAt: new Date().toISOString() };
+  saveLocalProjectStates({ meta: { ...state.meta, lastRun }, projects: state.projects });
+  res.json({ ok: true, lastRun });
+
+  // Push to Azure in the background — don't make every "Run" click wait on the Azure CLI.
+  pushProjectStatesToAzure().catch((err) => {
+    console.warn("[last-run] Background Azure push failed:", err.message);
+  });
+});
+
 app.post("/api/project-states/assign-ports", async (req, res) => {
   if (!authorizedHttp(req)) {
     res.status(401).json({ error: "unauthorized" });

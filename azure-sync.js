@@ -222,6 +222,7 @@ export function syncAndAssignUniquePorts() {
 
   const result = saveLocalProjectStates({
     meta: {
+      ...current.meta,
       totalProjects: Object.keys(updatedProjects).length,
       lastPortAssigned: nextPortCandidate,
       scannedAt: new Date().toISOString(),
@@ -439,12 +440,24 @@ export async function pullProjectStatesFromAzure() {
         const remoteData = JSON.parse(fs.readFileSync(tempFile, "utf8"));
         const localData = loadLocalProjectStates();
 
-        // Merge remote and local
+        // Merge remote and local. lastRun is special-cased: whichever side actually ran
+        // something more recently wins, instead of always favoring local (which would make
+        // "rerun last" never pick up what another machine just ran).
+        const remoteMeta = remoteData.meta || {};
+        const localMeta = localData.meta || {};
+        let lastRun = localMeta.lastRun || remoteMeta.lastRun || null;
+        if (remoteMeta.lastRun && localMeta.lastRun) {
+          const remoteAt = new Date(remoteMeta.lastRun.savedAt || 0).getTime();
+          const localAt = new Date(localMeta.lastRun.savedAt || 0).getTime();
+          lastRun = remoteAt > localAt ? remoteMeta.lastRun : localMeta.lastRun;
+        }
+
         const mergedProjects = { ...(remoteData.projects || {}), ...(localData.projects || {}) };
         const mergedState = saveLocalProjectStates({
           meta: {
-            ...(remoteData.meta || {}),
-            ...(localData.meta || {}),
+            ...remoteMeta,
+            ...localMeta,
+            lastRun,
             lastPulledAt: new Date().toISOString(),
           },
           projects: mergedProjects,

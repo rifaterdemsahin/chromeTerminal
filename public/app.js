@@ -646,13 +646,18 @@ let sessionAgeTimer = 0;
 let activeAgent = sessionStorage.getItem(ACTIVE_AGENT_KEY) || "";
 let agentStartedAt = Number(sessionStorage.getItem(AGENT_STARTED_KEY)) || 0;
 let lastActionAt = 0;
+// "Rerun last" state: kept in localStorage (survives browser restarts, unlike sessionStorage)
+// and mirrored to the server's project-states file, which rides the existing Azure Sync
+// Pull/Push flow — so the last-run command follows you to another machine too.
 let lastRunCmd = "";
 let lastRunBadge = "";
+let lastRunSavedAt = "";
 try {
-  const savedLastRun = JSON.parse(sessionStorage.getItem(LAST_RUN_KEY) || "null");
+  const savedLastRun = JSON.parse(localStorage.getItem(LAST_RUN_KEY) || "null");
   if (savedLastRun && savedLastRun.cmd) {
     lastRunCmd = savedLastRun.cmd;
     lastRunBadge = savedLastRun.badge || "";
+    lastRunSavedAt = savedLastRun.savedAt || "";
   }
 } catch {
   /* ignore malformed storage */
@@ -720,7 +725,12 @@ function renderSessionWidget() {
   sessionElapsedEl.textContent = hasAgent ? `running ${formatElapsedShort(Date.now() - agentStartedAt)}` : "";
   sessionElapsedEl.title = hasAgent ? `Launched at ${new Date(agentStartedAt).toLocaleTimeString()}` : "";
   sessionLastActionEl.textContent = lastActionAt ? `last output ${formatElapsedShort(Date.now() - lastActionAt)} ago` : "no output yet";
-  if (btnRerunAgent) btnRerunAgent.disabled = !lastRunCmd;
+  if (btnRerunAgent) {
+    btnRerunAgent.disabled = !lastRunCmd;
+    btnRerunAgent.title = lastRunCmd
+      ? `Re-run ${lastRunBadge ? `${lastRunBadge}: ` : ""}${lastRunCmd}`
+      : "Re-run the last agent or command that was launched";
+  }
   if (btnStopAgent) btnStopAgent.disabled = !connected;
 }
 
@@ -728,6 +738,52 @@ function startSessionWidgetClock() {
   renderSessionWidget();
   if (sessionWidgetTimer) return;
   sessionWidgetTimer = window.setInterval(renderSessionWidget, 5000);
+}
+
+function saveLastRun(cmd, badge) {
+  lastRunCmd = cmd;
+  lastRunBadge = badge || "";
+  lastRunSavedAt = new Date().toISOString();
+  localStorage.setItem(
+    LAST_RUN_KEY,
+    JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge, savedAt: lastRunSavedAt })
+  );
+  if (isLocal) {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    fetch(`/api/last-run${q}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge }),
+    }).catch((err) => console.warn("[last-run] Save failed:", err));
+  }
+}
+
+async function hydrateLastRunFromServer() {
+  if (!isLocal) return;
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/last-run${q}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const remote = data && data.lastRun;
+    if (!remote || !remote.cmd) return;
+    const remoteAt = Date.parse(remote.savedAt || "") || 0;
+    const localAt = Date.parse(lastRunSavedAt || "") || 0;
+    if (remoteAt > localAt) {
+      lastRunCmd = remote.cmd;
+      lastRunBadge = remote.badge || "";
+      lastRunSavedAt = remote.savedAt || "";
+      localStorage.setItem(
+        LAST_RUN_KEY,
+        JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge, savedAt: lastRunSavedAt })
+      );
+      renderSessionWidget();
+    }
+  } catch (err) {
+    console.warn("[last-run] Hydrate failed:", err);
+  }
 }
 
 function setActiveAgent(label, cmd) {
@@ -742,9 +798,7 @@ function setActiveAgent(label, cmd) {
     sessionStorage.removeItem(AGENT_STARTED_KEY);
   }
   if (cmd) {
-    lastRunCmd = cmd;
-    lastRunBadge = activeAgent;
-    sessionStorage.setItem(LAST_RUN_KEY, JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge }));
+    saveLastRun(cmd, activeAgent);
   }
   renderSessionWidget();
 }
@@ -4032,6 +4086,7 @@ window.addEventListener("load", () => {
   renderSessionAge();
   if (sessionStartedAt) startSessionAgeClock(sessionStartedAt);
   startSessionWidgetClock();
+  hydrateLastRunFromServer();
   fit();
   connect();
   loadProjects().catch((err) => {
