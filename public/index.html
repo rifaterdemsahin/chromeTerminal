@@ -44,37 +44,47 @@
           </button>
           <span id="status">connecting…</span>
         </div>
-        <button id="btn-azure-modal" type="button" class="accent" title="Azure Key Vault & Storage Sync Manager">☁️ Azure</button>
-        <button id="btn-net-modal" type="button" class="accent" title="Connection Speed, Ping & DNS Quality Details">⚡ Speed</button>
-        <button id="btn-save" type="button" title="Download the current terminal buffer as a .txt file">💾 Save</button>
-        <button
-          id="btn-dictate"
-          type="button"
-          class="accent"
-          title="Focus the terminal cursor, then start dictation. Speak after click. You can also double-tap Fn (Globe) once the cursor is in the shell."
-        >
-          🎤 Dictate
-        </button>
-        <button type="button" id="btn-prompts" class="accent" title="Reusable prompts to insert or send into the terminal">📚 Prompts</button>
-        <button id="btn-new-tab" type="button" title="Open a new shell session in a new browser tab">🆕 New session</button>
-        <button id="btn-focus" type="button" title="Hide chrome panels so the terminal fills the window">🧘 Focus</button>
-        <button id="btn-fullscreen" type="button" title="Fill the whole screen">⛶ Fullscreen</button>
-        <button id="reconnect" type="button">🔄 Reconnect</button>
+        <div class="titlebar-actions">
+          <button id="btn-save" type="button" title="Download the current terminal buffer as a .txt file">💾 Save</button>
+          <button
+            id="btn-dictate"
+            type="button"
+            title="Focus the terminal cursor, then start dictation. Speak after click. You can also double-tap Fn (Globe) once the cursor is in the shell."
+          >
+            🎤 Dictate
+          </button>
+          <button type="button" id="btn-prompts" title="Reusable prompts to insert or send into the terminal">📚 Prompts</button>
+          <button id="btn-new-tab" type="button" title="Open a new shell session in a new browser tab">🆕 New</button>
+          <button id="btn-focus" type="button" title="Hide chrome panels so the terminal fills the window">🧘 Focus</button>
+          <button id="btn-fullscreen" type="button" title="Fill the whole screen">⛶ Fullscreen</button>
+          <button id="reconnect" type="button" class="primary-action" title="Reconnect the shell session">🔄 Reconnect</button>
+        </div>
       </header>
+
+      <div class="session-widget" id="session-widget" role="region" aria-label="Current session status">
+        <span class="session-widget-label">▶ Current</span>
+        <span class="session-agent" id="session-agent" title="The most recently launched agent or command">— none running —</span>
+        <span class="session-elapsed" id="session-elapsed" title="Time since that agent/command was launched"></span>
+        <span class="session-divider" aria-hidden="true">·</span>
+        <span class="session-last-action" id="session-last-action" aria-live="polite" title="Time since the shell last produced output"></span>
+        <span class="session-widget-spacer"></span>
+        <button type="button" id="btn-rerun-agent" class="theme-btn" title="Re-run the last agent or command that was launched" disabled>🔁 Rerun last</button>
+        <button type="button" id="btn-stop-agent" class="theme-btn" title="Send Ctrl+C to interrupt whatever is running in the shell" disabled>✋ Stop</button>
+      </div>
 
       <div class="panel-dock" id="panel-dock" role="toolbar" aria-label="Collapsible panels">
         <span class="menu-label">Panels</span>
         <button type="button" id="btn-collapse-all" class="accent" title="Hide all collapsible panels">📦 Collapse all</button>
         <button type="button" id="btn-expand-all" title="Show every chrome panel">📂 Expand all</button>
-        <button type="button" class="theme-btn" data-panel-toggle="menu">🧭 Menu</button>
-        <button type="button" class="theme-btn" data-panel-toggle="projects">📁 Projects</button>
-        <button type="button" class="theme-btn" data-panel-toggle="agents">🤖 Agents</button>
-        <button type="button" class="theme-btn" data-panel-toggle="secondbrain">🧠 Second Brain</button>
-        <button type="button" class="theme-btn" data-panel-toggle="test">🧪 Test</button>
-        <button type="button" class="theme-btn" data-panel-toggle="badge">🏷️ Badge</button>
-        <button type="button" class="theme-btn" data-panel-toggle="theme">🎨 Theme</button>
-        <button type="button" class="theme-btn" data-panel-toggle="help">❓ Help</button>
-        <button type="button" class="theme-btn" data-panel-toggle="blurb">📝 About</button>
+        <button type="button" class="theme-btn" data-panel-toggle="menu" aria-label="Toggle Menu panel">🧭 Menu</button>
+        <button type="button" class="theme-btn" data-panel-toggle="projects" aria-label="Toggle Projects panel">📁 Projects</button>
+        <button type="button" class="theme-btn" data-panel-toggle="agents" aria-label="Toggle Agents panel">🤖 Agents</button>
+        <button type="button" class="theme-btn" data-panel-toggle="secondbrain" aria-label="Toggle Second Brain panel">🧠 Second Brain</button>
+        <button type="button" class="theme-btn" data-panel-toggle="test" aria-label="Toggle Test panel">🧪 Test</button>
+        <button type="button" class="theme-btn" data-panel-toggle="badge" aria-label="Toggle Badge panel">🏷️ Badge</button>
+        <button type="button" class="theme-btn" data-panel-toggle="theme" aria-label="Toggle Theme panel">🎨 Theme</button>
+        <button type="button" class="theme-btn" data-panel-toggle="help" aria-label="Toggle Help panel">❓ Help</button>
+        <button type="button" class="theme-btn" data-panel-toggle="blurb" aria-label="Toggle About panel">📝 About</button>
       </div>
 
       <nav class="menu" data-panel="menu" aria-label="Terminal actions">
@@ -85,21 +95,23 @@
           <button type="button" id="btn-last-project" title="cd ~/projects, ls -ant, then cd into the newest folder">↩️ Last project</button>
         </div>
         <div class="menu-group">
-          <label class="menu-label" for="project-filter">Projects</label>
-          <input id="project-filter" type="search" placeholder="🔍 Filter projects…" autocomplete="off" />
-          <button type="button" id="btn-sort-name" class="theme-btn" title="Sort all projects A–Z">🔤 A–Z</button>
-          <button type="button" id="btn-sort-latest" class="theme-btn" title="Sort all projects by last modified">🕒 Latest</button>
+          <span class="menu-label">Pinned &amp; sync</span>
           <button type="button" id="btn-pinned-sort-az" class="theme-btn" title="Sort pinned projects A–Z">📌 🔤</button>
           <button type="button" id="btn-pinned-reverse" class="theme-btn" title="Reverse order of pinned projects">📌 🔄</button>
           <button type="button" id="btn-assign-ports-menu" class="theme-btn accent" title="Assign unique 30,000+ ports to all projects">⚡ Ports 30k+</button>
           <button type="button" id="btn-sync-azure-menu" class="theme-btn" title="Sync project states to Azure Key Vault & Storage">☁️ Sync</button>
         </div>
-        <button type="button" class="panel-close-btn" data-panel-close="menu" title="Collapse Menu">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="menu" title="Collapse Menu" aria-label="Collapse Menu">✕</button>
       </nav>
 
       <div class="project-bar-wrap" data-panel="projects">
+        <div class="project-toolbar">
+          <input id="project-filter" type="search" placeholder="🔍 Filter projects…" autocomplete="off" aria-label="Filter projects" />
+          <button type="button" id="btn-sort-name" class="theme-btn" title="Sort all projects A–Z">🔤 A–Z</button>
+          <button type="button" id="btn-sort-latest" class="theme-btn" title="Sort all projects by last modified">🕒 Latest</button>
+          <button type="button" class="panel-close-btn" data-panel-close="projects" title="Collapse Projects" aria-label="Collapse Projects">✕</button>
+        </div>
         <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
-        <button type="button" class="panel-close-btn" data-panel-close="projects" title="Collapse Projects">✕</button>
       </div>
 
       <div class="theme-bar agents-bar" data-panel="agents" role="region" aria-label="Agent tools and shortcuts">
@@ -148,7 +160,7 @@
             📊 Usage limits
           </a>
         </div>
-        <button type="button" class="panel-close-btn" data-panel-close="agents" title="Collapse Agents">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="agents" title="Collapse Agents" aria-label="Collapse Agents">✕</button>
       </div>
 
       <div class="theme-bar secondbrain-bar" data-panel="secondbrain" role="region" aria-label="Second Brain Vault Tools and PAP">
@@ -171,7 +183,7 @@
           <span class="menu-label">Dashboard</span>
           <button type="button" class="accent" id="btn-sb-launch-dashboard" title="Launch Second Brain Dashboard in Google Chrome">📊 Launch Dashboard</button>
         </div>
-        <button type="button" class="panel-close-btn" data-panel-close="secondbrain" title="Collapse Second Brain">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="secondbrain" title="Collapse Second Brain" aria-label="Collapse Second Brain">✕</button>
       </div>
 
       <div class="theme-bar test-bar" data-panel="test" role="region" aria-label="Testing, Speed, Azure Sync, AI Tools, and Infra">
@@ -193,7 +205,7 @@
         <div class="menu-group">
           <span class="menu-label">🤖 AI Tools</span>
           <button type="button" class="accent" id="btn-testing-check-ai" title="Test if AI CLI tools (agy, claude, grok, gemini, ollama) load and check API gateways">🤖 Test AI (Load &amp; Hello)</button>
-          <button type="button" id="btn-test-send-hello" class="accent" title="Send a Hello prompt to the active AI agent in the terminal">💬 Send "Hello"</button>
+          <button type="button" id="btn-test-send-hello" class="accent" title="Open a separate real terminal for every AI tool at once, run each one for real, and check it off when it responds">✅ Check All Terminals</button>
           <span class="testing-stat-chip" id="testing-ai-summary-chip" title="AI CLI tools and API status">✨ AI Tools: 5/5 Ready</span>
         </div>
         <div class="menu-group">
@@ -203,7 +215,7 @@
           <button type="button" id="btn-open-n8n" title="Open n8n.rifaterdemsahin.com in Google Chrome">⚡ n8n</button>
           <span class="testing-stat-chip" id="testing-infra-summary-chip" title="Proxmox &amp; n8n status">🖥️ Infra: Ready</span>
         </div>
-        <button type="button" class="panel-close-btn" data-panel-close="test" title="Collapse Test Panel">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="test" title="Collapse Test Panel" aria-label="Collapse Test Panel">✕</button>
       </div>
 
       <div class="theme-bar badge-bar" data-panel="badge">
@@ -247,7 +259,7 @@
         >
           📤 Commit · push · leave
         </button>
-        <button type="button" class="panel-close-btn" data-panel-close="badge" title="Collapse Badge">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="badge" title="Collapse Badge" aria-label="Collapse Badge">✕</button>
       </div>
 
       <div class="theme-bar" id="theme-bar" data-panel="theme" role="group" aria-label="Color themes">
@@ -258,7 +270,7 @@
           <span class="lint ok">● ok</span>
           <span class="lint info">● info</span>
         </span>
-        <button type="button" class="panel-close-btn" data-panel-close="theme" title="Collapse Theme">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="theme" title="Collapse Theme" aria-label="Collapse Theme">✕</button>
       </div>
 
       <div class="theme-bar help-bar" data-panel="help" role="region" aria-label="Help shortcuts">
@@ -275,7 +287,7 @@
         >
           📊 Usage limits
         </a>
-        <button type="button" class="panel-close-btn" data-panel-close="help" title="Collapse Help">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="help" title="Collapse Help" aria-label="Collapse Help">✕</button>
       </div>
 
       <div class="blurb" data-panel="blurb">
@@ -284,7 +296,7 @@
           <strong>http://127.0.0.1:3847</strong> after <code>npm start</code>.
           GitHub Pages hosts this UI and the guide — it cannot spawn your zsh.
         </span>
-        <button type="button" class="panel-close-btn" data-panel-close="blurb" title="Collapse About">✕</button>
+        <button type="button" class="panel-close-btn" data-panel-close="blurb" title="Collapse About" aria-label="Collapse About">✕</button>
       </div>
 
       <div class="term-wrap">
@@ -461,7 +473,6 @@
             <h3>🤖 Local AI CLI Tools (Load &amp; Version Diagnostic)</h3>
             <div class="net-test-actions">
               <button type="button" id="btn-retest-ai-modal" class="accent">🔄 Retest All AI Tools</button>
-              <button type="button" id="btn-modal-send-hello" class="accent" title="Send Hello prompt to terminal">💬 Send "Hello" to Shell</button>
             </div>
           </div>
           <div class="net-details-table-wrap">
@@ -482,6 +493,30 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div class="net-section-box">
+          <div class="net-section-header">
+            <h3>🖥️ Live Terminal Check — one real terminal per tool</h3>
+            <div class="net-test-actions">
+              <button
+                type="button"
+                id="btn-modal-send-hello"
+                class="accent"
+                title="Open a separate real terminal for every AI tool at once, run each one for real, and check it off when it responds"
+              >
+                ✅ Check All Terminals
+              </button>
+            </div>
+          </div>
+          <p class="net-summary-text" style="margin:0 0 10px">
+            Each card below is its own live shell (same PTY the main terminal uses). Click ▶ Run on
+            one tool, or ✅ Check All Terminals to fire every tool's terminal at once — each gets
+            checked off the moment it actually responds.
+          </p>
+          <div class="ai-mini-term-grid" id="ai-mini-term-grid">
+            <!-- Populated dynamically, one live terminal card per tool -->
           </div>
         </div>
 

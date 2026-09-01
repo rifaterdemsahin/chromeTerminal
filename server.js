@@ -83,6 +83,171 @@ function authorizedHttp(req) {
   return req.query.token === TOKEN;
 }
 
+function shQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function stripAnsi(input) {
+  return String(input)
+    .replace(/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, "") // OSC sequences
+    .replace(/\x1B\[[0-9;?]*[a-zA-Z]/g, "") // CSI sequences
+    .replace(/\x1B[()][A-Za-z0-9]/g, "") // charset select
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ""); // other control chars (keep \n \t)
+}
+
+const HELLO_PROMPT = "Hello, are you working? Reply in one short line.";
+
+const HELLO_FAILURE_PATTERNS =
+  /command not found|no such file or directory|not recognized as an internal|is not recognized|could not connect|connection refused|econnrefused|enoent\b|permission denied|error:|failed to|unauthorized|authentication (failed|error)|invalid api key|api key not (found|set)|traceback \(most recent/i;
+
+// mode "prompt": one-shot non-interactive CLI invocations that answer and exit on their own.
+// mode "observe": interactive/agentic TUIs — launched for real (same command the Run buttons use)
+// but never fed further keystrokes, so a background health-check can never trigger autonomous
+// file edits even with an accept-edits/skip-permissions flag baked into the launch command.
+const HELLO_TEST_TOOLS = [
+  {
+    id: "agy",
+    name: "Antigravity CLI (agy)",
+    bin: "agy",
+    icon: "✨",
+    mode: "observe",
+    cmd: "agy --effort medium --mode accept-edits",
+  },
+  {
+    id: "claude",
+    name: "Claude Code (claude)",
+    bin: "claude",
+    icon: "🎭",
+    mode: "prompt",
+    cmd: `claude --model sonnet -p ${shQuote(HELLO_PROMPT)}`,
+  },
+  {
+    id: "grok",
+    name: "xAI Grok (grok)",
+    bin: "grok",
+    icon: "🤖",
+    mode: "observe",
+    cmd: "grok --effort medium --permission-mode acceptEdits",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek (kilo)",
+    bin: "kilo",
+    icon: "🐋",
+    mode: "observe",
+    cmd: "kilo",
+  },
+  {
+    id: "gemini",
+    name: "Google Gemini CLI (gemini)",
+    bin: "gemini",
+    icon: "🌟",
+    mode: "prompt",
+    cmd: `gemini -p ${shQuote(HELLO_PROMPT)}`,
+  },
+  {
+    id: "ollama",
+    name: "Ollama Local (ollama)",
+    bin: "ollama",
+    icon: "🦙",
+    mode: "prompt",
+    cmd: `ollama run llama3 ${shQuote("Hello")}`,
+  },
+];
+
+// Opens a real background PTY terminal (same login shell the visible tab uses), types the
+// tool's actual launch command into it, lets it run untouched for a window, then kills it —
+// so "working" reflects the tool's real startup/response output, not just `--version`.
+function runHelloBgTest(tool, customEnv) {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    let output = "";
+    let ptyProcess;
+
+    try {
+      ptyProcess = pty.spawn(SHELL, ["-l"], {
+        name: "xterm-color",
+        cols: 100,
+        rows: 30,
+        cwd: os.homedir(),
+        env: customEnv,
+      });
+    } catch (err) {
+      resolve({
+        id: tool.id,
+        name: tool.name,
+        icon: tool.icon,
+        bin: tool.bin,
+        helloCmd: tool.cmd,
+        working: false,
+        statusText: "Spawn failed ❌",
+        durationMs: 0,
+        error: err.message,
+        output: "",
+      });
+      return;
+    }
+
+    ptyProcess.onData((data) => {
+      output += data;
+      if (output.length > 20000) output = output.slice(-20000);
+    });
+
+    const runDelay = 400;
+    const windowMs = tool.mode === "prompt" ? 12000 : 7000;
+    let settled = false;
+
+    const settle = (killFirst) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(runTimer);
+      clearTimeout(finishTimer);
+      const durationMs = Math.round(performance.now() - start);
+      if (killFirst) {
+        try {
+          ptyProcess.write("\x03");
+        } catch {
+          /* already exited */
+        }
+        try {
+          ptyProcess.kill();
+        } catch {
+          /* already gone */
+        }
+      }
+
+      const clean = stripAnsi(output).trim();
+      const looksFailed = HELLO_FAILURE_PATTERNS.test(clean);
+      const working = !looksFailed && clean.length > 60;
+
+      resolve({
+        id: tool.id,
+        name: tool.name,
+        icon: tool.icon,
+        bin: tool.bin,
+        helloCmd: tool.cmd,
+        working,
+        statusText: working ? "Working ✅" : looksFailed ? "Error / not installed ❌" : "No response ❌",
+        durationMs,
+        output: clean.slice(-1200),
+      });
+    };
+
+    const runTimer = setTimeout(() => {
+      try {
+        ptyProcess.write(`${tool.cmd}\r`);
+      } catch {
+        /* pty may already be gone */
+      }
+    }, runDelay);
+
+    // Command finished (or the shell died) before the window elapsed — resolve early, no kill needed.
+    ptyProcess.onExit(() => settle(false));
+
+    const finishTimer = setTimeout(() => settle(true), runDelay + windowMs);
+  });
+}
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true, shell: SHELL, host: HOST, port: PORT, projectsDir: PROJECTS_DIR });
 });
@@ -411,54 +576,9 @@ app.get("/api/test-ai-hello", async (req, res) => {
   };
 
   const toolId = req.query.tool || "all";
-  const cliTools = [
-    { id: "agy", name: "Antigravity CLI (agy)", bin: "agy", args: ["--version"], icon: "✨", helloCmd: "agy --effort medium --mode accept-edits" },
-    { id: "claude", name: "Claude Code (claude)", bin: "claude", args: ["--version"], icon: "🎭", helloCmd: "claude --model sonnet --effort medium --dangerously-skip-permissions" },
-    { id: "grok", name: "xAI Grok (grok)", bin: "grok", args: ["--version"], icon: "🤖", helloCmd: "grok --effort medium --permission-mode acceptEdits" },
-    { id: "deepseek", name: "DeepSeek (kilo)", bin: "kilo", args: ["--version"], icon: "🐋", helloCmd: "kilo" },
-    { id: "gemini", name: "Google Gemini CLI (gemini)", bin: "gemini", args: ["--version"], icon: "🌟", helloCmd: "gemini -p 'Hello from chromeTerminal!'" },
-    { id: "ollama", name: "Ollama Local (ollama)", bin: "ollama", args: ["--version"], icon: "🦙", helloCmd: "ollama run llama3 'Hello'" },
-  ];
+  const targetTools = toolId === "all" ? HELLO_TEST_TOOLS : HELLO_TEST_TOOLS.filter((t) => t.id === toolId);
 
-  const targetTools = toolId === "all" ? cliTools : cliTools.filter((t) => t.id === toolId);
-
-  const tests = await Promise.all(
-    targetTools.map(async (t) => {
-      const start = performance.now();
-      try {
-        const { stdout, stderr } = await execFileAsync(t.bin, t.args, {
-          env: customEnv,
-          timeout: 4000,
-        });
-        const durationMs = Math.round((performance.now() - start) * 10) / 10;
-        const out = (stdout || stderr || "").trim().split("\n")[0] || "OK";
-        return {
-          id: t.id,
-          name: t.name,
-          icon: t.icon,
-          bin: t.bin,
-          helloCmd: t.helloCmd,
-          working: true,
-          statusText: "Working ✅",
-          durationMs,
-          output: out,
-        };
-      } catch (err) {
-        const durationMs = Math.round((performance.now() - start) * 10) / 10;
-        return {
-          id: t.id,
-          name: t.name,
-          icon: t.icon,
-          bin: t.bin,
-          helloCmd: t.helloCmd,
-          working: false,
-          statusText: "Failed ❌",
-          durationMs,
-          error: err.message,
-        };
-      }
-    })
-  );
+  const tests = await Promise.all(targetTools.map((t) => runHelloBgTest(t, customEnv)));
 
   res.json({
     ok: true,

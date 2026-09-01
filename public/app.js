@@ -2,6 +2,12 @@ const statusEl = document.getElementById("status");
 const originLabel = document.getElementById("origin-label");
 const pwdEl = document.getElementById("pwd-label");
 const sessionAgeEl = document.getElementById("session-age");
+const sessionWidgetEl = document.getElementById("session-widget");
+const sessionAgentEl = document.getElementById("session-agent");
+const sessionElapsedEl = document.getElementById("session-elapsed");
+const sessionLastActionEl = document.getElementById("session-last-action");
+const btnRerunAgent = document.getElementById("btn-rerun-agent");
+const btnStopAgent = document.getElementById("btn-stop-agent");
 const termHost = document.getElementById("terminal");
 const reconnectBtn = document.getElementById("reconnect");
 const saveBtn = document.getElementById("btn-save");
@@ -137,6 +143,7 @@ const aiDiagTimestamp = document.getElementById("ai-diag-timestamp");
 const btnRetestAiModal = document.getElementById("btn-retest-ai-modal");
 const btnModalSendHello = document.getElementById("btn-modal-send-hello");
 const btnCopyAiDiag = document.getElementById("btn-copy-ai-diag");
+const aiMiniTermGrid = document.getElementById("ai-mini-term-grid");
 
 // Infra Test Modal
 const infraTestModal = document.getElementById("infra-test-modal");
@@ -613,6 +620,9 @@ function renderThemes() {
 const SESSION_KEY = "chromeTerminal.session";
 const SESSION_STARTED_KEY = "chromeTerminal.sessionStartedAt";
 const WATERMARK_KEY = "chromeTerminal.watermark";
+const ACTIVE_AGENT_KEY = "chromeTerminal.activeAgent";
+const AGENT_STARTED_KEY = "chromeTerminal.agentStartedAt";
+const LAST_RUN_KEY = "chromeTerminal.lastRun";
 
 const PANELS_KEY = "chromeTerminal.panels";
 const CUSTOM_PROMPTS_KEY = "chromeTerminal.customPrompts";
@@ -632,6 +642,22 @@ let resumeAttempts = 0;
 let pushWatch = null;
 let sessionStartedAt = Number(sessionStorage.getItem(SESSION_STARTED_KEY)) || 0;
 let sessionAgeTimer = 0;
+
+let activeAgent = sessionStorage.getItem(ACTIVE_AGENT_KEY) || "";
+let agentStartedAt = Number(sessionStorage.getItem(AGENT_STARTED_KEY)) || 0;
+let lastActionAt = 0;
+let lastRunCmd = "";
+let lastRunBadge = "";
+try {
+  const savedLastRun = JSON.parse(sessionStorage.getItem(LAST_RUN_KEY) || "null");
+  if (savedLastRun && savedLastRun.cmd) {
+    lastRunCmd = savedLastRun.cmd;
+    lastRunBadge = savedLastRun.badge || "";
+  }
+} catch {
+  /* ignore malformed storage */
+}
+let sessionWidgetTimer = 0;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -675,6 +701,69 @@ function clearSessionAge() {
     sessionAgeTimer = 0;
   }
   renderSessionAge();
+}
+
+function formatElapsedShort(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  if (totalSec < 60) return `${totalSec}s`;
+  const totalMin = Math.floor(totalSec / 60);
+  if (totalMin < 60) return `${totalMin}m ${totalSec % 60}s`;
+  const hours = Math.floor(totalMin / 60);
+  return `${hours}h ${totalMin % 60}m`;
+}
+
+function renderSessionWidget() {
+  if (!sessionWidgetEl) return;
+  const hasAgent = Boolean(activeAgent && agentStartedAt);
+  sessionWidgetEl.classList.toggle("idle", !hasAgent);
+  sessionAgentEl.textContent = hasAgent ? `🤖 ${activeAgent}` : "— none running —";
+  sessionElapsedEl.textContent = hasAgent ? `running ${formatElapsedShort(Date.now() - agentStartedAt)}` : "";
+  sessionElapsedEl.title = hasAgent ? `Launched at ${new Date(agentStartedAt).toLocaleTimeString()}` : "";
+  sessionLastActionEl.textContent = lastActionAt ? `last output ${formatElapsedShort(Date.now() - lastActionAt)} ago` : "no output yet";
+  if (btnRerunAgent) btnRerunAgent.disabled = !lastRunCmd;
+  if (btnStopAgent) btnStopAgent.disabled = !connected;
+}
+
+function startSessionWidgetClock() {
+  renderSessionWidget();
+  if (sessionWidgetTimer) return;
+  sessionWidgetTimer = window.setInterval(renderSessionWidget, 5000);
+}
+
+function setActiveAgent(label, cmd) {
+  activeAgent = label || "";
+  agentStartedAt = activeAgent ? Date.now() : 0;
+  lastActionAt = Date.now();
+  if (activeAgent) {
+    sessionStorage.setItem(ACTIVE_AGENT_KEY, activeAgent);
+    sessionStorage.setItem(AGENT_STARTED_KEY, String(agentStartedAt));
+  } else {
+    sessionStorage.removeItem(ACTIVE_AGENT_KEY);
+    sessionStorage.removeItem(AGENT_STARTED_KEY);
+  }
+  if (cmd) {
+    lastRunCmd = cmd;
+    lastRunBadge = activeAgent;
+    sessionStorage.setItem(LAST_RUN_KEY, JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge }));
+  }
+  renderSessionWidget();
+}
+
+function noteActivity() {
+  lastActionAt = Date.now();
+}
+
+function rerunLastAgent() {
+  if (!lastRunCmd) return;
+  sendCommand(lastRunCmd);
+  setActiveAgent(lastRunBadge, lastRunCmd);
+}
+
+function stopRunningAgent() {
+  if (!connected) return;
+  sendInput("\x03");
+  noteActivity();
+  renderSessionWidget();
 }
 
 function tokenFromUrl() {
@@ -1775,36 +1864,262 @@ function closeAiTestModal() {
   if (isLocal) term.focus();
 }
 
-function sendAiHello(customText = "Hello from chromeTerminal! Please give a 1-line hello status.", toolId = null) {
-  if (!connected) {
-    connect();
-  }
-  closeAiTestModal();
-  term.focus();
-  sendInput(`${customText}\n`);
-  setStatus(`▶️ Sent Hello prompt to terminal shell`);
+// --- Live Terminal Check: one real PTY-backed mini terminal per AI tool ---
+// Tools that need "Hello" typed into them after they boot (interactive/agentic launches).
+// gemini/ollama are excluded: their helloCmd already carries a one-shot prompt and exits on its own.
+const LIVE_TERM_NEEDS_HELLO_INPUT = { agy: true, claude: true, grok: true, deepseek: true };
+const LIVE_TERM_HELLO_PROMPT = "Hello, are you working? Reply in one short line.";
+const LIVE_TERM_BOOT_DELAY_MS = 1200;
+const LIVE_TERM_RESPONSE_WAIT_MS = 7000;
+const LIVE_TERM_PROMPT_WAIT_MS = 12000;
 
-  if (isLocal) {
-    const token = tokenFromUrl();
-    const q = token ? `&token=${encodeURIComponent(token)}` : "";
-    const toolParam = toolId ? `?tool=${encodeURIComponent(toolId)}${q}` : `?tool=all${q}`;
-    fetch(`/api/test-ai-hello${toolParam}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok && data.tests) {
-          for (const t of data.tests) {
-            const found = aiState.tools.find((x) => x.id === t.id);
-            if (found && t.working) {
-              found.working = true;
-              found.statusText = "Working ✅";
-            }
-          }
-          renderAiTestResults(aiState);
-          setStatus(`✅ AI Hello test passed (${data.workingCount}/${data.testedCount} working)`);
-        }
-      })
-      .catch((err) => console.warn("[ai-hello] Test failed:", err));
+const miniTerminals = {};
+
+// Reads xterm.js's own rendered buffer instead of re-parsing raw ANSI bytes ourselves —
+// xterm already resolves cursor moves, redraws, and line-editor repaint sequences correctly,
+// so this gives the exact text the user sees on screen (no double-typed/garbled reconstruction).
+function getTerminalText(term) {
+  if (!term || !term.buffer || !term.buffer.active) return "";
+  const buf = term.buffer.active;
+  const lines = [];
+  for (let i = 0; i < buf.length; i++) {
+    const line = buf.getLine(i);
+    if (line) lines.push(line.translateToString(true));
   }
+  return lines.join("\n");
+}
+
+const LIVE_TERM_FAILURE_PATTERNS =
+  /command not found|no such file or directory|not recognized as an internal|is not recognized|could not connect|connection refused|econnrefused|enoent\b|permission denied|error:|failed to|unauthorized|authentication (failed|error)|invalid api key|api key not (found|set)|traceback \(most recent/i;
+
+function ensureMiniTerminalGrid() {
+  if (!aiMiniTermGrid || !aiState.tools.length) return;
+  if (aiMiniTermGrid.children.length === aiState.tools.length) return;
+  aiMiniTermGrid.innerHTML = "";
+  for (const tool of aiState.tools) {
+    const card = document.createElement("div");
+    card.className = "ai-mini-term-card";
+    card.id = `ai-mini-term-card-${tool.id}`;
+    card.innerHTML = `
+      <div class="ai-mini-term-head">
+        <span>${tool.icon || "🤖"} ${escapeHtml(tool.name)}</span>
+        <span class="ai-mini-term-check" id="ai-mini-check-${tool.id}">☐</span>
+      </div>
+      <div class="ai-mini-term-body" id="ai-mini-term-body-${tool.id}"></div>
+      <div class="ai-mini-term-actions">
+        <button type="button" class="theme-btn ai-mini-term-run" data-tool-id="${tool.id}">▶ Run</button>
+        <span class="ai-mini-term-status" id="ai-mini-term-status-${tool.id}">Idle</span>
+      </div>
+    `;
+    aiMiniTermGrid.appendChild(card);
+  }
+  aiMiniTermGrid.querySelectorAll(".ai-mini-term-run").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tool = aiState.tools.find((t) => t.id === btn.getAttribute("data-tool-id"));
+      if (tool) runLiveTerminalCheck(tool);
+    });
+  });
+}
+
+function setMiniStatus(toolId, text, kind) {
+  const el = document.getElementById(`ai-mini-term-status-${toolId}`);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `ai-mini-term-status ${kind ? `status-${kind}` : ""}`;
+}
+
+function setMiniCheck(toolId, state) {
+  const el = document.getElementById(`ai-mini-check-${toolId}`);
+  const card = document.getElementById(`ai-mini-term-card-${toolId}`);
+  if (el) {
+    el.textContent = state === "working" ? "✅" : state === "failed" ? "❌" : "☐";
+    el.className = `ai-mini-term-check ${state === "working" ? "checked" : state === "failed" ? "failed" : ""}`;
+  }
+  if (card) {
+    card.classList.toggle("is-working", state === "working");
+    card.classList.toggle("is-failed", state === "failed");
+  }
+}
+
+function runLiveTerminalCheck(tool) {
+  if (!isLocal) {
+    setStatus("🔴 Live terminal checks need the local server (127.0.0.1)");
+    return;
+  }
+  let mt = miniTerminals[tool.id];
+  if (mt && mt.running) return;
+  if (!mt) {
+    mt = { term: null, socket: null, running: false, finishTimer: null, helloTimer: null };
+    miniTerminals[tool.id] = mt;
+  }
+  if (mt.socket) {
+    try {
+      mt.socket.close();
+    } catch {
+      /* already closed */
+    }
+  }
+  if (mt.finishTimer) clearTimeout(mt.finishTimer);
+  if (mt.helloTimer) clearTimeout(mt.helloTimer);
+
+  mt.running = true;
+  setMiniCheck(tool.id, null);
+  setMiniStatus(tool.id, "🔌 Connecting…", "warn");
+
+  const bodyEl = document.getElementById(`ai-mini-term-body-${tool.id}`);
+  if (bodyEl) {
+    if (!mt.term) {
+      mt.term = new Terminal({
+        cols: 60,
+        rows: 9,
+        fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+        fontSize: 11,
+        theme: { background: "#0f1115", foreground: "#e8eaed", cursor: "#8ab4f8" },
+        scrollback: 2000,
+        disableStdin: true,
+      });
+      mt.term.open(bodyEl);
+    } else {
+      mt.term.reset();
+    }
+  }
+
+  const token = tokenFromUrl();
+  const params = new URLSearchParams();
+  if (token) params.set("token", token);
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/pty${params.toString() ? `?${params}` : ""}`);
+  mt.socket = ws;
+
+  const needsHello = Boolean(LIVE_TERM_NEEDS_HELLO_INPUT[tool.id]);
+  const windowMs = needsHello ? LIVE_TERM_BOOT_DELAY_MS + LIVE_TERM_RESPONSE_WAIT_MS : LIVE_TERM_PROMPT_WAIT_MS;
+
+  ws.addEventListener("message", (ev) => {
+    let msg;
+    try {
+      msg = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
+    if (msg.type === "session") {
+      setMiniStatus(tool.id, "▶️ Launching…", "warn");
+      setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: "input", data: `${tool.helloCmd || tool.bin}\r` }));
+        if (needsHello) {
+          mt.helloTimer = setTimeout(() => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            ws.send(JSON.stringify({ type: "input", data: `${LIVE_TERM_HELLO_PROMPT}\r` }));
+            setMiniStatus(tool.id, "💬 Sent Hello — waiting for reply…", "warn");
+          }, LIVE_TERM_BOOT_DELAY_MS);
+        } else {
+          setMiniStatus(tool.id, "⏳ Running…", "warn");
+        }
+      }, 300);
+      mt.finishTimer = setTimeout(() => finishLiveTerminalCheck(tool), windowMs + 300);
+    } else if (msg.type === "output") {
+      if (mt.term) mt.term.write(msg.data);
+    } else if (msg.type === "exit") {
+      finishLiveTerminalCheck(tool);
+    }
+  });
+
+  ws.addEventListener("close", () => {
+    mt.running = false;
+  });
+
+  ws.addEventListener("error", () => {
+    setMiniStatus(tool.id, "🔴 Connection error", "bad");
+  });
+}
+
+function finishLiveTerminalCheck(tool) {
+  const mt = miniTerminals[tool.id];
+  if (!mt || !mt.running) return;
+  mt.running = false;
+  if (mt.finishTimer) clearTimeout(mt.finishTimer);
+  if (mt.helloTimer) clearTimeout(mt.helloTimer);
+
+  const clean = getTerminalText(mt.term).trim();
+  const looksFailed = LIVE_TERM_FAILURE_PATTERNS.test(clean);
+  const working = !looksFailed && clean.length > 60;
+
+  setMiniCheck(tool.id, working ? "working" : "failed");
+  setMiniStatus(
+    tool.id,
+    working ? "✅ Working — checked off" : looksFailed ? "❌ Error / not installed" : "❌ No response",
+    working ? "good" : "bad"
+  );
+
+  const found = aiState.tools.find((x) => x.id === tool.id);
+  if (found) {
+    found.working = working;
+    found.statusText = working ? "Working ✅" : looksFailed ? "Error / not installed ❌" : "No response ❌";
+    found.helloOutput = clean.slice(-1200);
+  }
+  renderAiTestResults(aiState);
+
+  const ws = mt.socket;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(JSON.stringify({ type: "input", data: "\x03" }));
+    } catch {
+      /* ignore */
+    }
+    setTimeout(() => {
+      try {
+        ws.send(JSON.stringify({ type: "input", data: "exit\r" }));
+      } catch {
+        /* ignore */
+      }
+      setTimeout(() => {
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+      }, 400);
+    }, 300);
+  }
+}
+
+async function sendAiHello() {
+  if (!isLocal) {
+    setStatus("🔴 Check All Terminals needs the local server (127.0.0.1) — it opens a real terminal per tool");
+    return;
+  }
+
+  if (aiTestModal) aiTestModal.hidden = false;
+  if (!aiState.tools.length) {
+    await checkAiConnections();
+  }
+  ensureMiniTerminalGrid();
+
+  const helloButtons = [btnTestSendHello, btnModalSendHello].filter(Boolean);
+  helloButtons.forEach((btn) => {
+    btn.dataset.origText = btn.dataset.origText || btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "⏳ Checking all terminals…";
+  });
+  if (aiTestModalPill) {
+    aiTestModalPill.className = "net-pill net-pill-fair";
+    aiTestModalPill.textContent = "🟡 Opening a terminal per AI tool…";
+  }
+  setStatus("🔄 Opening a live terminal for every AI tool — watch each one get checked off");
+
+  for (const tool of aiState.tools) {
+    runLiveTerminalCheck(tool);
+  }
+
+  const maxWaitMs = LIVE_TERM_PROMPT_WAIT_MS + LIVE_TERM_BOOT_DELAY_MS + 1500;
+  setTimeout(() => {
+    const workingCount = aiState.tools.filter((t) => t.working === true).length;
+    setStatus(`✅ Check All Terminals done — ${workingCount}/${aiState.tools.length} AI tools working`);
+    helloButtons.forEach((btn) => {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.origText || btn.textContent;
+    });
+  }, maxWaitMs);
 }
 
 async function checkAiConnections(openModalOnComplete = false) {
@@ -1894,6 +2209,7 @@ async function checkAiConnections(openModalOnComplete = false) {
       return {
         ...t,
         working: prev && prev.working !== undefined ? prev.working : t.ok,
+        helloOutput: prev ? prev.helloOutput : undefined,
       };
     });
     aiState.toolsLoadedCount = data.toolsLoadedCount || (data.tools ? data.tools.filter((t) => t.ok).length : 0);
@@ -1921,6 +2237,8 @@ async function checkAiConnections(openModalOnComplete = false) {
 function renderAiTestResults(state) {
   const { tools, toolsLoadedCount, toolsTotalCount, results, apisReachableCount, apisTotalCount } = state;
   const workingToolsCount = tools.filter((t) => t.working).length;
+
+  ensureMiniTerminalGrid();
 
   if (testingAiSummaryChip) {
     const isAllGood = toolsLoadedCount >= toolsTotalCount - 1;
@@ -1968,17 +2286,27 @@ function renderAiTestResults(state) {
     for (const tool of (tools || [])) {
       const tr = document.createElement("tr");
       const isOk = tool.ok;
-      const isWorking = tool.working;
-      const statusTagClass = isWorking ? "net-tag-ok" : (isOk ? "net-tag-ok" : "net-tag-err");
-      const statusLabel = isWorking ? "Working ✅" : (isOk ? "Loaded ⚡" : (tool.error || "Missing"));
+      const wasHelloTested = tool.working !== undefined && tool.helloOutput !== undefined;
+      const isWorking = tool.working === true;
+      const statusTagClass = isWorking ? "net-tag-ok" : wasHelloTested ? "net-tag-err" : (isOk ? "net-tag-ok" : "net-tag-err");
+      const statusLabel = isWorking
+        ? "Working ✅"
+        : wasHelloTested
+        ? (tool.statusText || "Not working ❌")
+        : isOk
+        ? "Loaded ⚡"
+        : (tool.error || "Missing");
       const loadStr = tool.durationMs !== undefined ? `${tool.durationMs} ms` : "--";
+      const statusTitle = wasHelloTested && tool.helloOutput
+        ? `Background terminal output:\n${tool.helloOutput.slice(-400)}`
+        : statusLabel;
 
       tr.innerHTML = `
         <td><strong>${tool.icon || "🤖"} ${escapeHtml(tool.name)}</strong></td>
         <td><code>${escapeHtml(tool.bin || "")}</code></td>
         <td style="font-family:monospace; font-size:11px">${escapeHtml(tool.version || "--")}</td>
         <td>${loadStr}</td>
-        <td><span class="net-tag ${statusTagClass}">${escapeHtml(statusLabel)}</span></td>
+        <td><span class="net-tag ${statusTagClass}" title="${escapeHtml(statusTitle)}">${escapeHtml(statusLabel)}</span></td>
         <td>
           <button type="button" class="accent azure-action-btn btn-tool-send-hello" data-tool-id="${escapeHtml(tool.id)}" data-hello="${escapeHtml(tool.helloCmd || tool.bin)}" title="Run in terminal">💬 Test Hello</button>
         </td>
@@ -2429,6 +2757,7 @@ function connect(opts = {}) {
     startPing();
     fit();
     term.focus();
+    renderSessionWidget();
   });
 
   socket.addEventListener("message", (event) => {
@@ -2445,6 +2774,7 @@ function connect(opts = {}) {
     if (msg.type === "output") {
       term.write(msg.data);
       notePushOutput(msg.data);
+      noteActivity();
     }
     if (msg.type === "exit") {
       sessionStorage.removeItem(SESSION_KEY);
@@ -2452,6 +2782,7 @@ function connect(opts = {}) {
       stopPing();
       term.write(`\r\n\x1b[33m👋 shell exited (${msg.exitCode ?? "?"})\x1b[0m\r\n`);
       setStatus("⚪ disconnected");
+      renderSessionWidget();
     }
   });
 
@@ -2459,6 +2790,7 @@ function connect(opts = {}) {
     connected = false;
     stopPing();
     setStatus("⚪ disconnected");
+    renderSessionWidget();
     if (!document.hidden && allowAutoResume) wakeTerminal();
   });
 
@@ -3208,8 +3540,12 @@ document.querySelectorAll("[data-run]").forEach((btn) => {
     const badge = btn.getAttribute("data-badge") || cmd;
     sendCommand(cmd);
     if (badge) setWatermark(badge);
+    setActiveAgent(badge, cmd);
   });
 });
+
+if (btnRerunAgent) btnRerunAgent.addEventListener("click", rerunLastAgent);
+if (btnStopAgent) btnStopAgent.addEventListener("click", stopRunningAgent);
 
 document.querySelectorAll("[data-effort]").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -3695,6 +4031,7 @@ window.addEventListener("load", () => {
   syncFullscreenButton();
   renderSessionAge();
   if (sessionStartedAt) startSessionAgeClock(sessionStartedAt);
+  startSessionWidgetClock();
   fit();
   connect();
   loadProjects().catch((err) => {
