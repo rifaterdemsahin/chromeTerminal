@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = Number(process.env.PORT) || 3847;
+const PORT = Number(process.env.PORT) || 30847;
 const HOST = process.env.HOST || "127.0.0.1";
 const HEALTH_URL = `http://${HOST}:${PORT}/health`;
 const HEALTH_EVERY_MS = 4000;

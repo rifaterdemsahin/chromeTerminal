@@ -1369,4 +1369,276 @@ button[data-effort="high"]:hover {
   color: var(--muted);
 }
 
+/* Azure Key Vault & Storage Sync Styles */
+.azure-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: rgba(138, 180, 248, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.azure-sync-badge:hover {
+  background: rgba(138, 180, 248, 0.16);
+  border-color: var(--accent);
+}
+
+.azure-sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.azure-sync-dot.sync-good {
+  background: #34a853;
+  box-shadow: 0 0 6px rgba(52, 168, 83, 0.5);
+}
+
+.azure-sync-dot.sync-active {
+  background: #fbbc04;
+  box-shadow: 0 0 6px rgba(251, 188, 4, 0.6);
+  animation: pulse 1s infinite alternate;
+}
+
+.azure-sync-dot.sync-error {
+  background: #ea4335;
+  box-shadow: 0 0 6px rgba(234, 67, 53, 0.6);
+}
+
+@keyframes pulse {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+.azure-sync-panel {
+  max-width: 950px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.azure-head-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.azure-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sync-pill-synced {
+  background: rgba(52, 168, 83, 0.15);
+  color: #81c995;
+  border: 1px solid rgba(52, 168, 83, 0.3);
+}
+
+.sync-pill-syncing {
+  background: rgba(251, 188, 4, 0.15);
+  color: #fdd663;
+  border: 1px solid rgba(251, 188, 4, 0.3);
+}
+
+.sync-pill-error {
+  background: rgba(234, 67, 53, 0.15);
+  color: #f28b82;
+  border: 1px solid rgba(234, 67, 53, 0.3);
+}
+
+.azure-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.azure-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.azure-card-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.azure-card-val {
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.azure-card-sub {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.azure-card-sub code {
+  color: var(--accent);
+  font-size: 10.5px;
+}
+
+.azure-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.azure-search-input {
+  flex: 1;
+  min-width: 180px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.azure-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.azure-projects-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 250px;
+  max-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.azure-projects-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.azure-projects-table th {
+  position: sticky;
+  top: 0;
+  background: var(--chrome);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  z-index: 1;
+}
+
+.azure-projects-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.azure-projects-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.azure-port-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(129, 201, 149, 0.15);
+  color: #81c995;
+  border: 1px solid rgba(129, 201, 149, 0.3);
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.azure-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.azure-action-btn {
+  padding: 3px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+.azure-sync-footer {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Project chip port badge in project bar */
+.chip-port {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: 600;
+  border-radius: 3px;
+  background: rgba(138, 180, 248, 0.18);
+  color: var(--accent);
+}
+
+.chip-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.chip-action-btn {
+  padding: 1px 4px;
+  font-size: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.chip-action-btn:hover {
+  opacity: 1;
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+
 

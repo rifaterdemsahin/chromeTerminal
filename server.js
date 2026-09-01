@@ -11,9 +11,19 @@ const execFileAsync = promisify(execFile);
 import express from "express";
 import { WebSocketServer } from "ws";
 import pty from "node-pty";
+import {
+  loadLocalProjectStates,
+  saveLocalProjectStates,
+  syncAndAssignUniquePorts,
+  getSyncStatus,
+  pushProjectStatesToAzure,
+  pullProjectStatesFromAzure,
+  syncProjectStates,
+  openPageInChrome,
+} from "./azure-sync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.PORT) || 3847;
+const PORT = Number(process.env.PORT) || 30847;
 const HOST = process.env.HOST || "127.0.0.1";
 const SHELL =
   process.env.SHELL ||
@@ -179,6 +189,7 @@ app.get("/api/projects", (req, res) => {
 
   let entries = [];
   try {
+    const states = loadLocalProjectStates()?.projects || {};
     entries = fs
       .readdirSync(PROJECTS_DIR, { withFileTypes: true })
       .filter((e) => e.isDirectory() && !e.name.startsWith("."))
@@ -190,7 +201,20 @@ app.get("/api/projects", (req, res) => {
         } catch {
           mtimeMs = 0;
         }
-        return { name: e.name, path: full, mtimeMs };
+        const state = states[e.name] || {};
+        return {
+          name: e.name,
+          path: full,
+          mtimeMs,
+          port: state.port || null,
+          framework: state.framework || "Generic / Static",
+          startCommand: state.startCommand || null,
+          initialPage: state.initialPage || (state.port ? `http://localhost:${state.port}/` : null),
+          agentPrompt: state.agentPrompt || null,
+          pinned: state.pinned || false,
+          notes: state.notes || "",
+          lastRunAt: state.lastRunAt || null,
+        };
       })
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   } catch (err) {
@@ -202,7 +226,182 @@ app.get("/api/projects", (req, res) => {
     home: os.homedir(),
     projectsDir: PROJECTS_DIR,
     projects: entries,
+    syncStatus: getSyncStatus(),
   });
+});
+
+app.get("/api/azure-sync/status", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.json(getSyncStatus());
+});
+
+app.post("/api/azure-sync/sync", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  try {
+    const result = await syncProjectStates();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message, syncStatus: getSyncStatus() });
+  }
+});
+
+app.post("/api/azure-sync/pull", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  try {
+    const result = await pullProjectStatesFromAzure();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message, syncStatus: getSyncStatus() });
+  }
+});
+
+app.post("/api/azure-sync/push", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  try {
+    const result = await pushProjectStatesToAzure();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message, syncStatus: getSyncStatus() });
+  }
+});
+
+app.get("/api/project-states", (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const state = loadLocalProjectStates();
+  res.json({
+    ok: true,
+    ...state,
+    syncStatus: getSyncStatus(),
+  });
+});
+
+app.post("/api/project-states/assign-ports", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  try {
+    const autoPush = req.body?.push !== false;
+    let result;
+    if (autoPush) {
+      result = await syncProjectStates();
+    } else {
+      const state = syncAndAssignUniquePorts();
+      result = { ok: true, state, syncStatus: getSyncStatus() };
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/project-states/update", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const { name, port, startCommand, initialPage, notes, pinned } = req.body || {};
+  if (!name) {
+    res.status(400).json({ error: "Project name is required" });
+    return;
+  }
+
+  const state = loadLocalProjectStates();
+  const current = state.projects[name] || { name, path: path.join(PROJECTS_DIR, name) };
+
+  if (port !== undefined) current.port = Number(port);
+  if (startCommand !== undefined) current.startCommand = String(startCommand);
+  if (initialPage !== undefined) current.initialPage = String(initialPage);
+  if (notes !== undefined) current.notes = String(notes);
+  if (pinned !== undefined) current.pinned = Boolean(pinned);
+  current.updatedAt = new Date().toISOString();
+  if (current.port) {
+    current.agentPrompt = `cd "${current.path}" && ${current.startCommand || `PORT=${current.port} npm start`}; open -a "Google Chrome" "${current.initialPage || `http://localhost:${current.port}/`}"`;
+  }
+
+  state.projects[name] = current;
+  saveLocalProjectStates(state);
+
+  // Background push if possible
+  pushProjectStatesToAzure().catch(() => {});
+
+  res.json({ ok: true, project: current, syncStatus: getSyncStatus() });
+});
+
+app.post("/api/project-states/launch-agent", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const { name, openBrowser, agentType = "agy" } = req.body || {};
+  if (!name) {
+    res.status(400).json({ error: "Project name is required" });
+    return;
+  }
+
+  const state = loadLocalProjectStates();
+  const proj = state.projects[name];
+  if (!proj) {
+    res.status(404).json({ error: `Project "${name}" not found` });
+    return;
+  }
+
+  const assignedPort = proj.port || 30080;
+  proj.lastRunAt = new Date().toISOString();
+  saveLocalProjectStates(state);
+
+  const initialUrl = proj.initialPage || `http://localhost:${assignedPort}/`;
+
+  // Construct structured agent prompt reminding the agent of the port mandate
+  const promptInstruction = `I am working on project "${name}" in ${proj.path}.
+Assigned server port: ${assignedPort} (URL: ${initialUrl}).
+Server command: ${proj.startCommand || `PORT=${assignedPort} npm run dev`}
+Rule Mandate: Local servers must run on port ${assignedPort} (>30,000) to prevent port collisions.
+Always open pages in Google Chrome with: open -a "Google Chrome" "${initialUrl}"`;
+
+  let browserResult = null;
+  if (openBrowser) {
+    browserResult = await openPageInChrome(initialUrl);
+  }
+
+  res.json({
+    ok: true,
+    project: proj,
+    assignedPort,
+    initialUrl,
+    promptInstruction,
+    agentType,
+    browserResult,
+  });
+});
+
+app.post("/api/project-states/open-page", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const { url } = req.body || {};
+  if (!url) {
+    res.status(400).json({ error: "URL is required" });
+    return;
+  }
+  const result = await openPageInChrome(url);
+  res.json(result);
 });
 
 const server = http.createServer(app);

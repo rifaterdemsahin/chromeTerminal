@@ -32,8 +32,19 @@
             <span id="net-badge-speed" class="net-badge-extra">· -- Mbps</span>
             <span id="net-badge-label" class="net-quality-label">Good</span>
           </button>
+          <button
+            type="button"
+            id="azure-sync-badge"
+            class="azure-sync-badge"
+            title="Azure Key Vault & Blob Sync (dp-kv-deliverypilot ➔ dpstoryboardsa) — Click to sync & configure"
+            aria-label="Azure Sync Status"
+          >
+            <span class="azure-sync-dot sync-good" id="azure-sync-dot"></span>
+            <span id="azure-sync-badge-text">☁️ Azure Sync</span>
+          </button>
           <span id="status">connecting…</span>
         </div>
+        <button id="btn-azure-modal" type="button" class="accent" title="Azure Key Vault & Storage Sync Manager">☁️ Azure</button>
         <button id="btn-net-modal" type="button" class="accent" title="Connection Speed, Ping & DNS Quality Details">⚡ Speed</button>
         <button id="btn-save" type="button" title="Download the current terminal buffer as a .txt file">💾 Save</button>
         <button
@@ -78,6 +89,8 @@
           <button type="button" id="btn-sort-latest" class="theme-btn" title="Sort all projects by last modified">🕒 Latest</button>
           <button type="button" id="btn-pinned-sort-az" class="theme-btn" title="Sort pinned projects A–Z">📌 🔤</button>
           <button type="button" id="btn-pinned-reverse" class="theme-btn" title="Reverse order of pinned projects">📌 🔄</button>
+          <button type="button" id="btn-assign-ports-menu" class="theme-btn accent" title="Assign unique 30,000+ ports to all projects">⚡ Ports 30k+</button>
+          <button type="button" id="btn-sync-azure-menu" class="theme-btn" title="Sync project states to Azure Key Vault & Storage">☁️ Sync</button>
         </div>
         <button type="button" class="panel-close-btn" data-panel-close="menu" title="Collapse Menu">✕</button>
       </nav>
@@ -91,7 +104,9 @@
         <div class="menu-group">
           <span class="menu-label">Run</span>
           <button type="button" class="accent" data-run="grok --effort medium --permission-mode acceptEdits" data-badge="grok" title="Run grok in shell (medium effort, accept edits)">🤖 grok</button>
+          <button type="button" class="accent" data-run="claude --model sonnet --effort medium --dangerously-skip-permissions" data-badge="claude" title="Run claude in shell (medium effort, sonnet)">🎭 claude</button>
           <button type="button" class="accent" data-run="agy --effort medium --mode accept-edits" data-badge="agy" title="Run agy in shell (medium effort, accept edits)">✨ agy</button>
+          <button type="button" id="btn-agent-main-page" class="accent" title="Run the server: launches agy and automatically sends 'open the main page with <port>' via timer">▶️ Run the server</button>
           <button
             type="button"
             id="btn-ls5"
@@ -404,6 +419,73 @@
       </div>
     </aside>
 
+    <aside id="azure-sync-modal" class="guide azure-sync-modal" hidden>
+      <div class="guide-panel azure-sync-panel" role="dialog" aria-labelledby="azure-sync-title">
+        <div class="guide-head">
+          <div class="azure-head-left">
+            <h1 id="azure-sync-title">☁️ Azure Key Vault &amp; Project Port Sync</h1>
+            <span id="azure-sync-modal-badge" class="azure-status-pill sync-pill-synced">Synced</span>
+          </div>
+          <button type="button" id="azure-sync-close">Close</button>
+        </div>
+
+        <div class="azure-overview-grid">
+          <div class="azure-card">
+            <span class="azure-card-label">🔐 Azure Key Vault</span>
+            <strong id="azure-kv-name" class="azure-card-val">dp-kv-deliverypilot</strong>
+            <span class="azure-card-sub">Secret: <code>azure-storage-account-key</code></span>
+          </div>
+          <div class="azure-card">
+            <span class="azure-card-label">🗄️ Azure Storage</span>
+            <strong id="azure-storage-acc" class="azure-card-val">dpprojects</strong>
+            <span class="azure-card-sub">Container: <code id="azure-storage-cont">states</code></span>
+          </div>
+          <div class="azure-card">
+            <span class="azure-card-label">📦 Object / Blob Target</span>
+            <strong id="azure-blob-name" class="azure-card-val">chromeTerminal-projectstates.json</strong>
+            <span class="azure-card-sub">Local: <code>~/.chromeTerminal/project-states.json</code></span>
+          </div>
+          <div class="azure-card">
+            <span class="azure-card-label">⏱ Sync Status</span>
+            <strong id="azure-last-synced" class="azure-card-val">Just now</strong>
+            <span id="azure-project-count" class="azure-card-sub">274 projects tracked</span>
+          </div>
+        </div>
+
+        <div class="azure-actions-bar">
+          <button type="button" id="btn-modal-sync-all" class="accent" title="Assign ports, save locally, and push to Azure Blob">🔄 Full Sync (Local ➔ Azure)</button>
+          <button type="button" id="btn-modal-assign-ports" class="theme-btn" title="Auto-assign unique 30,000+ ports to all projects">⚡ Re-Assign 30k+ Ports</button>
+          <button type="button" id="btn-modal-pull-azure" class="theme-btn" title="Download latest project states from Azure Blob">⬇️ Pull from Azure</button>
+          <button type="button" id="btn-modal-push-azure" class="theme-btn" title="Upload local project states to Azure Blob">⬆️ Push to Azure</button>
+          <input id="azure-project-search" type="search" class="azure-search-input" placeholder="🔍 Search projects &amp; ports..." autocomplete="off" />
+        </div>
+
+        <div class="azure-projects-table-wrap">
+          <table class="azure-projects-table" id="azure-projects-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Port (30k+)</th>
+                <th>Framework</th>
+                <th>Startup Command</th>
+                <th>Initial Page</th>
+                <th>Agent &amp; Browser Actions</th>
+              </tr>
+            </thead>
+            <tbody id="azure-projects-tbody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="azure-sync-footer">
+          <div class="azure-footer-info">
+            <span>Mandate: Local servers assigned unique ports <strong>&gt;30,000</strong> to avoid collisions. Initial pages launch in <strong>Google Chrome</strong>.</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
     <aside id="prompts" class="guide" hidden>
       <div class="guide-panel prompt-panel" role="dialog" aria-labelledby="prompts-title">
         <div class="guide-head">
@@ -483,7 +565,7 @@ open -a "Google Chrome" http://127.0.0.1:3847</pre>
             <li><strong>⛶ Fullscreen</strong> — fill the display (Esc to leave). <strong>📦 Collapse all</strong> hides About/Menu/Theme/Badge/Projects. <strong>📂 Expand all</strong> shows them. <strong>🧘 Focus</strong> toggles the same. The <strong>Panels</strong> row toggles each strip; that state is saved.</li>
             <li><strong>🏠 Home / 📁 Projects</strong> — <code>cd</code> to your home or <code>~/projects</code>. <strong>↩️ Last project</strong> — <code>cd ~/projects</code>, run <code>ls -ant</code>, then <code>cd</code> into the newest folder.</li>
             <li><strong>Project chips</strong> — one click <code>cd</code> into a repo (local server only); clicking automatically moves the active project to the left and saves the order. <strong>🕒 Latest</strong> sorts by folder modified time; <strong>🔤 A–Z</strong> is name order.</li>
-            <li><strong>🤖 grok / ✨ agy</strong> — launches Grok (<code>grok --effort medium --permission-mode acceptEdits</code>) or Antigravity (<code>agy --effort medium --mode accept-edits</code>) directly in medium reasoning effort and accept edits mode.</li>
+            <li><strong>🤖 grok / 🎭 claude / ✨ agy</strong> — launches Grok (<code>grok --effort medium --permission-mode acceptEdits</code>), Claude (<code>claude --model sonnet --effort medium --dangerously-skip-permissions</code>), or Antigravity (<code>agy --effort medium --mode accept-edits</code>) directly in medium reasoning effort.</li>
             <li><strong>📚 Prompts</strong> — title bar, next to 💾 Save. Library of reusable prompts. Insert or Send into the PTY. Add your own (saved here). Built-ins are in <code>public/prompts.json</code>.</li>
             <li><strong>📋 ls5</strong> — newest 5 directory entries (<code>ls -ant</code>, skip the total line, first 5).</li>
             <li><strong>⏱ Session time</strong> — in the title bar, hours and minutes this shell has been on (from when the PTY started; reconnects keep the same clock).</li>

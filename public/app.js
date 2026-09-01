@@ -69,6 +69,33 @@ const netDiagConnectionType = document.getElementById("net-diag-connection-type"
 const netDiagTimestamp = document.getElementById("net-diag-timestamp");
 const btnCopyNetDiag = document.getElementById("btn-copy-net-diag");
 
+const azureSyncBadge = document.getElementById("azure-sync-badge");
+const azureSyncDot = document.getElementById("azure-sync-dot");
+const azureSyncBadgeText = document.getElementById("azure-sync-badge-text");
+const btnAzureModal = document.getElementById("btn-azure-modal");
+const azureSyncModal = document.getElementById("azure-sync-modal");
+const azureSyncClose = document.getElementById("azure-sync-close");
+const azureSyncModalBadge = document.getElementById("azure-sync-modal-badge");
+const azureKvName = document.getElementById("azure-kv-name");
+const azureStorageAcc = document.getElementById("azure-storage-acc");
+const azureStorageCont = document.getElementById("azure-storage-cont");
+const azureBlobName = document.getElementById("azure-blob-name");
+const azureLastSynced = document.getElementById("azure-last-synced");
+const azureProjectCount = document.getElementById("azure-project-count");
+const btnModalSyncAll = document.getElementById("btn-modal-sync-all");
+const btnModalAssignPorts = document.getElementById("btn-modal-assign-ports");
+const btnModalPullAzure = document.getElementById("btn-modal-pull-azure");
+const btnModalPushAzure = document.getElementById("btn-modal-push-azure");
+const azureProjectSearch = document.getElementById("azure-project-search");
+const azureProjectsTbody = document.getElementById("azure-projects-tbody");
+const btnAssignPortsMenu = document.getElementById("btn-assign-ports-menu");
+const btnSyncAzureMenu = document.getElementById("btn-sync-azure-menu");
+const btnAgentMainPage = document.getElementById("btn-agent-main-page");
+
+let azureSyncState = null;
+let projectStatesCatalog = {};
+let currentCwdPath = "";
+
 const LS5_CMD = "ls -ant | awk 'NR==1 || n<5 { if (NR>1) n++; print }'";
 const DOUBLE_CTRL_C_MS = 800;
 const PUSH_OK = "CHROME_TERMINAL_PUSH_OK";
@@ -749,6 +776,7 @@ function prettyPath(abs, home) {
 }
 
 function applyCwd(abs, home) {
+  currentCwdPath = abs || "";
   if (home) catalog.home = home;
   const pretty = prettyPath(abs, catalog.home);
   pwdEl.textContent = pretty;
@@ -2113,15 +2141,29 @@ function renderProjects() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "project-chip-btn";
-    btn.textContent = `${isPinned ? "📌" : "📁"} ${project.name}`;
-    btn.title = project.mtimeMs
-      ? `${project.path} · ${new Date(project.mtimeMs).toLocaleString()}`
-      : project.path;
+    const portBadgeText = project.port ? ` :${project.port}` : "";
+    btn.textContent = `${isPinned ? "📌" : "📁"} ${project.name}${portBadgeText}`;
+    btn.title = project.port
+      ? `${project.path} (Port: ${project.port}) · Click to cd`
+      : (project.mtimeMs ? `${project.path} · ${new Date(project.mtimeMs).toLocaleString()}` : project.path);
     btn.addEventListener("click", () => {
       cdTo(project.path, project.name);
       moveProjectToFront(project.name);
     });
     chip.append(btn);
+
+    if (project.port) {
+      const runServerBtn = document.createElement("button");
+      runServerBtn.type = "button";
+      runServerBtn.className = "chip-action-btn";
+      runServerBtn.title = `Run the server: launches agy and sends 'open the main page with ${project.port}'`;
+      runServerBtn.textContent = "▶️";
+      runServerBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        runServerForProject(project.name);
+      });
+      chip.append(runServerBtn);
+    }
 
     if (isPinned) {
       const pinIdx = pinnedList.indexOf(project.name);
@@ -2166,7 +2208,321 @@ async function loadProjects() {
   const res = await fetch(`/api/projects${q}`);
   if (!res.ok) throw new Error(`projects ${res.status}`);
   catalog = await res.json();
+  if (catalog.syncStatus) {
+    updateAzureSyncUi(catalog.syncStatus);
+  }
   renderProjects();
+}
+
+/**
+ * Azure Key Vault & Storage Sync Management
+ */
+function updateAzureSyncUi(syncStatus) {
+  if (!syncStatus) return;
+  azureSyncState = syncStatus;
+
+  if (azureKvName) azureKvName.textContent = syncStatus.vaultName || "dp-kv-deliverypilot";
+  if (azureStorageAcc) azureStorageAcc.textContent = syncStatus.storageAccount || "dpstoryboardsa";
+  if (azureStorageCont) azureStorageCont.textContent = syncStatus.container || "ai-jobs-data";
+  if (azureBlobName) azureBlobName.textContent = syncStatus.blobName || "chrome-terminal/project-states.json";
+  if (azureProjectCount) azureProjectCount.textContent = `${syncStatus.projectCount || syncStatus.itemCount || 0} projects tracked`;
+
+  if (azureLastSynced) {
+    if (syncStatus.lastSyncedAt) {
+      azureLastSynced.textContent = new Date(syncStatus.lastSyncedAt).toLocaleTimeString();
+    } else {
+      azureLastSynced.textContent = "Not synced yet";
+    }
+  }
+
+  if (azureSyncBadgeText) {
+    if (syncStatus.status === "syncing") {
+      azureSyncBadgeText.textContent = "☁️ Syncing…";
+    } else if (syncStatus.status === "error") {
+      azureSyncBadgeText.textContent = "☁️ Sync Error";
+    } else if (syncStatus.lastSyncedAt) {
+      const timeStr = new Date(syncStatus.lastSyncedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      azureSyncBadgeText.textContent = `☁️ Synced (${timeStr})`;
+    } else {
+      azureSyncBadgeText.textContent = "☁️ Azure Sync";
+    }
+  }
+
+  if (azureSyncDot) {
+    azureSyncDot.className = "azure-sync-dot";
+    if (syncStatus.status === "syncing") azureSyncDot.classList.add("sync-active");
+    else if (syncStatus.status === "error") azureSyncDot.classList.add("sync-error");
+    else azureSyncDot.classList.add("sync-good");
+  }
+
+  if (azureSyncModalBadge) {
+    azureSyncModalBadge.className = "azure-status-pill";
+    if (syncStatus.status === "syncing") {
+      azureSyncModalBadge.classList.add("sync-pill-syncing");
+      azureSyncModalBadge.textContent = "Syncing…";
+    } else if (syncStatus.status === "error") {
+      azureSyncModalBadge.classList.add("sync-pill-error");
+      azureSyncModalBadge.textContent = "Error";
+    } else {
+      azureSyncModalBadge.classList.add("sync-pill-synced");
+      azureSyncModalBadge.textContent = "Synced";
+    }
+  }
+}
+
+async function fetchAzureSyncStatus() {
+  if (!isLocal) return;
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/azure-sync/status${q}`);
+    if (res.ok) {
+      const status = await res.json();
+      updateAzureSyncUi(status);
+    }
+  } catch (err) {
+    console.error("[azure-sync] Error checking status:", err);
+  }
+}
+
+async function openAzureSyncModal() {
+  if (!azureSyncModal) return;
+  azureSyncModal.hidden = false;
+  await fetchAzureSyncStatus();
+  await loadAndRenderAzureProjectsTable();
+}
+
+function closeAzureSyncModal() {
+  if (azureSyncModal) azureSyncModal.hidden = true;
+}
+
+async function loadAndRenderAzureProjectsTable() {
+  if (!isLocal || !azureProjectsTbody) return;
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/project-states${q}`);
+    if (res.ok) {
+      const data = await res.json();
+      projectStatesCatalog = data.projects || {};
+      if (data.syncStatus) updateAzureSyncUi(data.syncStatus);
+      renderAzureProjectsTable(azureProjectSearch ? azureProjectSearch.value : "");
+    }
+  } catch (err) {
+    console.error("[azure-sync] Error loading states table:", err);
+  }
+}
+
+function renderAzureProjectsTable(filter = "") {
+  if (!azureProjectsTbody) return;
+  azureProjectsTbody.innerHTML = "";
+
+  const query = filter.toLowerCase().trim();
+  const entries = Object.values(projectStatesCatalog).filter((p) => {
+    if (!query) return true;
+    return (
+      (p.name && p.name.toLowerCase().includes(query)) ||
+      (p.port && String(p.port).includes(query)) ||
+      (p.framework && p.framework.toLowerCase().includes(query)) ||
+      (p.startCommand && p.startCommand.toLowerCase().includes(query))
+    );
+  });
+
+  if (entries.length === 0) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td colspan="6" style="text-align:center; padding: 18px; color: var(--muted)">No matching projects found. Click <strong>⚡ Re-Assign 30k+ Ports</strong> to scan and allocate ports.</td>`;
+    azureProjectsTbody.append(row);
+    return;
+  }
+
+  for (const proj of entries) {
+    const tr = document.createElement("tr");
+    const port = proj.port || 30080;
+    const initialUrl = proj.initialPage || `http://localhost:${port}/`;
+    const startCmd = proj.startCommand || `PORT=${port} npm run dev`;
+
+    tr.innerHTML = `
+      <td><strong>📁 ${escapeHtml(proj.name)}</strong></td>
+      <td><span class="azure-port-badge">:${port}</span></td>
+      <td style="color:var(--muted)">${escapeHtml(proj.framework || "Generic")}</td>
+      <td><code>${escapeHtml(startCmd)}</code></td>
+      <td><a href="${escapeHtml(initialUrl)}" target="_blank" rel="noopener noreferrer" class="nav-link">${escapeHtml(initialUrl)}</a></td>
+      <td>
+        <div class="azure-actions-group">
+          <button type="button" class="accent azure-action-btn btn-act-run-server" data-project="${escapeHtml(proj.name)}" title="Run the server: launches agy and sends 'open the main page with ${port}'">▶️ Run server</button>
+          <button type="button" class="theme-btn azure-action-btn btn-act-chrome" data-url="${escapeHtml(initialUrl)}" title="Open initial page in Google Chrome">🌐 Chrome</button>
+        </div>
+      </td>
+    `;
+    azureProjectsTbody.append(tr);
+  }
+
+  // Attach event listeners for table buttons
+  azureProjectsTbody.querySelectorAll(".btn-act-run-server").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const projName = btn.getAttribute("data-project");
+      if (projName) {
+        closeAzureSyncModal();
+        runServerForProject(projName);
+      }
+    });
+  });
+
+  azureProjectsTbody.querySelectorAll(".btn-act-chrome").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const url = btn.getAttribute("data-url");
+      if (url) openProjectPageInChrome(url);
+    });
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+let agentLaunchTimer = null;
+
+async function runServerForProject(projectName, options = {}) {
+  if (!isLocal || !projectName) return;
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/project-states/launch-agent${q}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: projectName, openBrowser: false }),
+    });
+
+    if (!res.ok) throw new Error(`Launch failed: ${res.status}`);
+    const data = await res.json();
+    const proj = data.project;
+    const assignedPort = proj.port || 30080;
+    const agentCmd = options.agentCmd || "agy --effort medium --mode accept-edits";
+    const initialPrompt = options.initialPrompt || `open the main page with ${assignedPort}`;
+
+    // Step 1: CD into the project directory
+    cdTo(proj.path, proj.name);
+    setWatermark(proj.name);
+
+    if (agentLaunchTimer) clearTimeout(agentLaunchTimer);
+
+    // Step 2: Start agy (or configured agent) in shell
+    setTimeout(() => {
+      sendCommand(agentCmd);
+      setStatus(`⏳ Running server for ${proj.name}… sending "${initialPrompt}" in 2.8s`);
+
+      // Step 3: Timer after agy initialises to send the prompt
+      agentLaunchTimer = setTimeout(() => {
+        sendInput(`${initialPrompt}\n`);
+        setStatus(`▶️ Sent: "${initialPrompt}"`);
+      }, 2800);
+    }, 450);
+
+  } catch (err) {
+    console.error("[azure-sync] Error running server:", err);
+    setStatus(`🔴 Run server error: ${err.message}`);
+  }
+}
+
+const launchAgentForProject = runServerForProject;
+
+async function openProjectPageInChrome(url) {
+  if (!url) return;
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    await fetch(`/api/project-states/open-page${q}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    window.open(url, "_blank", "noopener");
+  } catch (err) {
+    window.open(url, "_blank", "noopener");
+  }
+}
+
+async function syncAllWithAzure() {
+  if (!isLocal) return;
+  updateAzureSyncUi({ ...azureSyncState, status: "syncing" });
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/azure-sync/sync${q}`, { method: "POST" });
+    const data = await res.json();
+    if (data.syncStatus) updateAzureSyncUi(data.syncStatus);
+    await loadProjects();
+    await loadAndRenderAzureProjectsTable();
+    setStatus("☁️ Synced states to Azure Key Vault & Storage");
+  } catch (err) {
+    console.error("[azure-sync] Sync failed:", err);
+    updateAzureSyncUi({ ...azureSyncState, status: "error", error: err.message });
+    setStatus(`🔴 Azure Sync failed: ${err.message}`);
+  }
+}
+
+async function assignUniquePortsAll() {
+  if (!isLocal) return;
+  updateAzureSyncUi({ ...azureSyncState, status: "syncing" });
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/project-states/assign-ports${q}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ push: true }),
+    });
+    const data = await res.json();
+    if (data.syncStatus) updateAzureSyncUi(data.syncStatus);
+    await loadProjects();
+    await loadAndRenderAzureProjectsTable();
+    setStatus("⚡ Assigned 30k+ unique ports to all projects & synced to Azure");
+  } catch (err) {
+    console.error("[azure-sync] Port assignment error:", err);
+    setStatus(`🔴 Port assignment error: ${err.message}`);
+  }
+}
+
+async function pullFromAzure() {
+  if (!isLocal) return;
+  updateAzureSyncUi({ ...azureSyncState, status: "syncing" });
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/azure-sync/pull${q}`, { method: "POST" });
+    const data = await res.json();
+    if (data.syncStatus) updateAzureSyncUi(data.syncStatus);
+    await loadProjects();
+    await loadAndRenderAzureProjectsTable();
+    setStatus("⬇️ Pulled latest project states from Azure Blob");
+  } catch (err) {
+    console.error("[azure-sync] Pull failed:", err);
+    updateAzureSyncUi({ ...azureSyncState, status: "error" });
+    setStatus(`🔴 Pull failed: ${err.message}`);
+  }
+}
+
+async function pushToAzure() {
+  if (!isLocal) return;
+  updateAzureSyncUi({ ...azureSyncState, status: "syncing" });
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/azure-sync/push${q}`, { method: "POST" });
+    const data = await res.json();
+    if (data.syncStatus) updateAzureSyncUi(data.syncStatus);
+    setStatus("⬆️ Pushed project states to Azure Blob");
+  } catch (err) {
+    console.error("[azure-sync] Push failed:", err);
+    updateAzureSyncUi({ ...azureSyncState, status: "error" });
+    setStatus(`🔴 Push failed: ${err.message}`);
+  }
 }
 
 term.onData((data) => {
@@ -2427,6 +2783,46 @@ if (btnRunSpeedTest) btnRunSpeedTest.addEventListener("click", runSpeedTest);
 if (btnRetestAll) btnRetestAll.addEventListener("click", runAllNetworkTests);
 if (btnCopyNetDiag) btnCopyNetDiag.addEventListener("click", copyNetworkReport);
 
+if (azureSyncBadge) azureSyncBadge.addEventListener("click", openAzureSyncModal);
+if (btnAzureModal) btnAzureModal.addEventListener("click", openAzureSyncModal);
+if (azureSyncClose) azureSyncClose.addEventListener("click", closeAzureSyncModal);
+if (azureSyncModal) {
+  azureSyncModal.addEventListener("click", (event) => {
+    if (event.target === azureSyncModal) closeAzureSyncModal();
+  });
+}
+if (btnModalSyncAll) btnModalSyncAll.addEventListener("click", syncAllWithAzure);
+if (btnModalAssignPorts) btnModalAssignPorts.addEventListener("click", assignUniquePortsAll);
+if (btnModalPullAzure) btnModalPullAzure.addEventListener("click", pullFromAzure);
+if (btnModalPushAzure) btnModalPushAzure.addEventListener("click", pushToAzure);
+if (azureProjectSearch) {
+  azureProjectSearch.addEventListener("input", (e) => renderAzureProjectsTable(e.target.value));
+}
+if (btnAssignPortsMenu) btnAssignPortsMenu.addEventListener("click", assignUniquePortsAll);
+if (btnSyncAzureMenu) btnSyncAzureMenu.addEventListener("click", syncAllWithAzure);
+if (btnAgentMainPage) {
+  btnAgentMainPage.addEventListener("click", () => {
+    let projName = "";
+    if (currentCwdPath) {
+      const parts = currentCwdPath.split("/").filter(Boolean);
+      const last = parts[parts.length - 1];
+      if (last && (projectStatesCatalog[last] || (catalog.projects && catalog.projects.some((p) => p.name === last)))) {
+        projName = last;
+      }
+    }
+    if (!projName) {
+      const pinned = loadPinnedProjects();
+      if (pinned.length > 0) projName = pinned[0];
+      else if (catalog.projects && catalog.projects.length > 0) projName = catalog.projects[0].name;
+    }
+    if (projName) {
+      runServerForProject(projName);
+    } else {
+      setStatus("Select a project first");
+    }
+  });
+}
+
 promptsBtn.addEventListener("click", openPrompts);
 promptsClose.addEventListener("click", closePrompts);
 promptsEl.addEventListener("click", (event) => {
@@ -2449,6 +2845,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (dictating) {
     stopDictation();
+    return;
+  }
+  if (azureSyncModal && !azureSyncModal.hidden) {
+    closeAzureSyncModal();
     return;
   }
   if (emojiPickerModal && !emojiPickerModal.hidden) {
@@ -2577,5 +2977,7 @@ window.addEventListener("load", () => {
   checkPing();
   checkDns();
   setInterval(checkPing, 8000);
+  fetchAzureSyncStatus();
+  setInterval(fetchAzureSyncStatus, 15000);
   if (!isLocal) openGuide();
 });
