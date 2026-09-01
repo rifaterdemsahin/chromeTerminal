@@ -651,12 +651,16 @@ let lastActionAt = 0;
 // Pull/Push flow — so the last-run command follows you to another machine too.
 let lastRunCmd = "";
 let lastRunBadge = "";
+let lastRunFolder = "";
+let lastRunProject = "";
 let lastRunSavedAt = "";
 try {
   const savedLastRun = JSON.parse(localStorage.getItem(LAST_RUN_KEY) || "null");
   if (savedLastRun && savedLastRun.cmd) {
     lastRunCmd = savedLastRun.cmd;
     lastRunBadge = savedLastRun.badge || "";
+    lastRunFolder = savedLastRun.folder || "";
+    lastRunProject = savedLastRun.project || "";
     lastRunSavedAt = savedLastRun.savedAt || "";
   }
 } catch {
@@ -727,9 +731,16 @@ function renderSessionWidget() {
   sessionLastActionEl.textContent = lastActionAt ? `last output ${formatElapsedShort(Date.now() - lastActionAt)} ago` : "no output yet";
   if (btnRerunAgent) {
     btnRerunAgent.disabled = !lastRunCmd;
-    btnRerunAgent.title = lastRunCmd
-      ? `Re-run ${lastRunBadge ? `${lastRunBadge}: ` : ""}${lastRunCmd}`
-      : "Re-run the last agent or command that was launched";
+    if (lastRunCmd) {
+      const where = lastRunProject
+        ? `${lastRunProject} (${prettyPath(lastRunFolder)})`
+        : lastRunFolder
+        ? prettyPath(lastRunFolder)
+        : "";
+      btnRerunAgent.title = `Re-run ${lastRunBadge ? `${lastRunBadge} ` : ""}${where ? `in ${where} ` : ""}— ${lastRunCmd}`;
+    } else {
+      btnRerunAgent.title = "Re-run the last agent or command that was launched";
+    }
   }
   if (btnStopAgent) btnStopAgent.disabled = !connected;
 }
@@ -740,13 +751,27 @@ function startSessionWidgetClock() {
   sessionWidgetTimer = window.setInterval(renderSessionWidget, 5000);
 }
 
-function saveLastRun(cmd, badge) {
+function findProjectNameForPath(folderPath) {
+  if (!folderPath || !Array.isArray(catalog.projects)) return "";
+  const match = catalog.projects.find((p) => p.path === folderPath);
+  return match ? match.name : "";
+}
+
+function saveLastRun(cmd, badge, folder) {
   lastRunCmd = cmd;
   lastRunBadge = badge || "";
+  lastRunFolder = folder || "";
+  lastRunProject = findProjectNameForPath(lastRunFolder);
   lastRunSavedAt = new Date().toISOString();
   localStorage.setItem(
     LAST_RUN_KEY,
-    JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge, savedAt: lastRunSavedAt })
+    JSON.stringify({
+      cmd: lastRunCmd,
+      badge: lastRunBadge,
+      folder: lastRunFolder,
+      project: lastRunProject,
+      savedAt: lastRunSavedAt,
+    })
   );
   if (isLocal) {
     const token = tokenFromUrl();
@@ -754,7 +779,12 @@ function saveLastRun(cmd, badge) {
     fetch(`/api/last-run${q}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge }),
+      body: JSON.stringify({
+        cmd: lastRunCmd,
+        badge: lastRunBadge,
+        folder: lastRunFolder,
+        project: lastRunProject,
+      }),
     }).catch((err) => console.warn("[last-run] Save failed:", err));
   }
 }
@@ -774,10 +804,18 @@ async function hydrateLastRunFromServer() {
     if (remoteAt > localAt) {
       lastRunCmd = remote.cmd;
       lastRunBadge = remote.badge || "";
+      lastRunFolder = remote.folder || "";
+      lastRunProject = remote.project || "";
       lastRunSavedAt = remote.savedAt || "";
       localStorage.setItem(
         LAST_RUN_KEY,
-        JSON.stringify({ cmd: lastRunCmd, badge: lastRunBadge, savedAt: lastRunSavedAt })
+        JSON.stringify({
+          cmd: lastRunCmd,
+          badge: lastRunBadge,
+          folder: lastRunFolder,
+          project: lastRunProject,
+          savedAt: lastRunSavedAt,
+        })
       );
       renderSessionWidget();
     }
@@ -786,7 +824,7 @@ async function hydrateLastRunFromServer() {
   }
 }
 
-function setActiveAgent(label, cmd) {
+function setActiveAgent(label, cmd, folder) {
   activeAgent = label || "";
   agentStartedAt = activeAgent ? Date.now() : 0;
   lastActionAt = Date.now();
@@ -798,7 +836,7 @@ function setActiveAgent(label, cmd) {
     sessionStorage.removeItem(AGENT_STARTED_KEY);
   }
   if (cmd) {
-    saveLastRun(cmd, activeAgent);
+    saveLastRun(cmd, activeAgent, folder !== undefined ? folder : currentCwdPath);
   }
   renderSessionWidget();
 }
@@ -809,8 +847,10 @@ function noteActivity() {
 
 function rerunLastAgent() {
   if (!lastRunCmd) return;
-  sendCommand(lastRunCmd);
-  setActiveAgent(lastRunBadge, lastRunCmd);
+  const fullCmd = lastRunFolder ? `cd ${shellQuote(lastRunFolder)} && ${lastRunCmd}` : lastRunCmd;
+  sendCommand(fullCmd);
+  if (lastRunBadge) setWatermark(lastRunBadge);
+  setActiveAgent(lastRunBadge, lastRunCmd, lastRunFolder);
 }
 
 function stopRunningAgent() {
@@ -3839,28 +3879,37 @@ if (btnSbCd) {
     cdTo("/Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain", "vault");
   });
 }
+const SECONDBRAIN_VAULT_PATH = "/Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain";
 if (btnSbAgy) {
   btnSbAgy.addEventListener("click", () => {
-    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && agy --effort medium --mode accept-edits");
+    const cmd = "agy --effort medium --mode accept-edits";
+    sendCommand(`cd ${SECONDBRAIN_VAULT_PATH} && ${cmd}`);
     setWatermark("🧠 agy");
+    setActiveAgent("🧠 agy", cmd, SECONDBRAIN_VAULT_PATH);
   });
 }
 if (btnSbGrok) {
   btnSbGrok.addEventListener("click", () => {
-    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && grok --effort medium --permission-mode acceptEdits");
+    const cmd = "grok --effort medium --permission-mode acceptEdits";
+    sendCommand(`cd ${SECONDBRAIN_VAULT_PATH} && ${cmd}`);
     setWatermark("🧠 grok");
+    setActiveAgent("🧠 grok", cmd, SECONDBRAIN_VAULT_PATH);
   });
 }
 if (btnSbClaude) {
   btnSbClaude.addEventListener("click", () => {
-    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && claude --model sonnet --effort medium --dangerously-skip-permissions");
+    const cmd = "claude --model sonnet --effort medium --dangerously-skip-permissions";
+    sendCommand(`cd ${SECONDBRAIN_VAULT_PATH} && ${cmd}`);
     setWatermark("🧠 claude");
+    setActiveAgent("🧠 claude", cmd, SECONDBRAIN_VAULT_PATH);
   });
 }
 if (btnSbDeepseek) {
   btnSbDeepseek.addEventListener("click", () => {
-    sendCommand("cd /Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain && kilo");
+    const cmd = "kilo";
+    sendCommand(`cd ${SECONDBRAIN_VAULT_PATH} && ${cmd}`);
     setWatermark("🧠 deepseek");
+    setActiveAgent("🧠 deepseek", cmd, SECONDBRAIN_VAULT_PATH);
   });
 }
 if (btnSbPap) {

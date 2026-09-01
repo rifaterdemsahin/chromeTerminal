@@ -828,13 +828,19 @@ app.post("/api/last-run", (req, res) => {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
-  const { cmd, badge } = req.body || {};
+  const { cmd, badge, folder, project } = req.body || {};
   if (!cmd || typeof cmd !== "string") {
     res.status(400).json({ ok: false, error: "cmd is required" });
     return;
   }
   const state = loadLocalProjectStates();
-  const lastRun = { cmd, badge: typeof badge === "string" ? badge : "", savedAt: new Date().toISOString() };
+  const lastRun = {
+    cmd,
+    badge: typeof badge === "string" ? badge : "",
+    folder: typeof folder === "string" ? folder : "",
+    project: typeof project === "string" ? project : "",
+    savedAt: new Date().toISOString(),
+  };
   saveLocalProjectStates({ meta: { ...state.meta, lastRun }, projects: state.projects });
   res.json({ ok: true, lastRun });
 
