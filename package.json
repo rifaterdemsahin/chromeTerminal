@@ -10,7 +10,8 @@
     "server": "node server.js",
     "dev": "node --watch server.js",
     "macos-install": "node scripts/install-launch-agent.js",
-    "macos-uninstall": "node scripts/install-launch-agent.js --uninstall"
+    "macos-uninstall": "node scripts/install-launch-agent.js --uninstall",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.21.2",
