@@ -11,10 +11,20 @@ const btnStopAgent = document.getElementById("btn-stop-agent");
 const termHost = document.getElementById("terminal");
 const reconnectBtn = document.getElementById("reconnect");
 const saveBtn = document.getElementById("btn-save");
+const sessionLogBtn = document.getElementById("btn-session-log");
+const sessionLogModal = document.getElementById("session-log-modal");
+const sessionLogModalClose = document.getElementById("session-log-modal-close");
+const sessionLogDateEl = document.getElementById("session-log-date");
+const sessionLogSizeEl = document.getElementById("session-log-size");
+const sessionLogContentEl = document.getElementById("session-log-content");
+const btnSessionLogCopy = document.getElementById("btn-session-log-copy");
+const btnSessionLogDownload = document.getElementById("btn-session-log-download");
+const btnSessionLogClear = document.getElementById("btn-session-log-clear");
 const dictateBtn = document.getElementById("btn-dictate");
 const newTabBtn = document.getElementById("btn-new-tab");
 const projectBar = document.getElementById("project-bar");
 const projectFilter = document.getElementById("project-filter");
+const latestProjectBadge = document.getElementById("btn-latest-project");
 const guideEl = document.getElementById("guide");
 const guideBtn = document.getElementById("btn-guide");
 const guideClose = document.getElementById("guide-close");
@@ -22,6 +32,16 @@ const promptsEl = document.getElementById("prompts");
 const promptsBtn = document.getElementById("btn-prompts");
 const promptsClose = document.getElementById("prompts-close");
 const promptListEl = document.getElementById("prompt-list");
+const btnFilesModal = document.getElementById("btn-files-modal");
+const filesModal = document.getElementById("files-modal");
+const filesModalClose = document.getElementById("files-modal-close");
+const filesRepoName = document.getElementById("files-repo-name");
+const filesTreeEl = document.getElementById("files-tree");
+const filesFilterInput = document.getElementById("files-filter");
+const filesCountEl = document.getElementById("files-count");
+const btnFilesExpandAll = document.getElementById("btn-files-expand-all");
+const btnFilesCollapseAll = document.getElementById("btn-files-collapse-all");
+const btnFilesRefresh = document.getElementById("btn-files-refresh");
 const themeBar = document.getElementById("theme-bar");
 const watermarkEl = document.getElementById("watermark");
 const watermarkInput = document.getElementById("watermark-input");
@@ -155,9 +175,28 @@ const infraDiagTimestamp = document.getElementById("infra-diag-timestamp");
 const btnRetestInfraModal = document.getElementById("btn-retest-infra-modal");
 const btnCopyInfraDiag = document.getElementById("btn-copy-infra-diag");
 
+// Debug Modal
+const btnDebugModal = document.getElementById("btn-debug-modal");
+const debugModal = document.getElementById("debug-modal");
+const debugModalClose = document.getElementById("debug-modal-close");
+const debugModalPill = document.getElementById("debug-modal-pill");
+const debugClientTable = document.getElementById("debug-client-table");
+const debugServerTable = document.getElementById("debug-server-table");
+const debugServerBadge = document.getElementById("debug-server-badge");
+const debugSessionsTbody = document.getElementById("debug-sessions-tbody");
+const debugDiagTimestamp = document.getElementById("debug-diag-timestamp");
+const btnDebugRefresh = document.getElementById("btn-debug-refresh");
+const debugAutoRefresh = document.getElementById("debug-auto-refresh");
+const btnCopyDebugDiag = document.getElementById("btn-copy-debug-diag");
+
 let azureSyncState = null;
 let projectStatesCatalog = {};
-let currentCwdPath = "";
+const ACTIVE_PROJECT_DIR_KEY = "chromeTerminal.activeProjectDir";
+// The active project's directory — the shell's current working directory. Seeded from
+// sessionStorage so it survives a reconnect within this tab, kept in sync by the server's
+// live cwd-watch (applyCwd), and updated optimistically the instant the user asks to cd
+// (cdTo/goLastProject) so dependent UI (pwd label, 🗂️ Files) doesn't wait on the poll.
+let currentCwdPath = sessionStorage.getItem(ACTIVE_PROJECT_DIR_KEY) || "";
 
 const LS5_CMD = "ls -ant | awk 'NR==1 || n<5 { if (NR>1) n++; print }'";
 const DOUBLE_CTRL_C_MS = 800;
@@ -186,6 +225,33 @@ const linksAddon = new WebLinksAddon.WebLinksAddon();
 term.loadAddon(fitAddon);
 term.loadAddon(linksAddon);
 term.open(termHost);
+
+// Copy-on-select: highlighting text in the terminal copies it to the clipboard immediately,
+// matching the "select to copy" convention of most terminal emulators.
+term.onSelectionChange(() => {
+  const selection = term.getSelection();
+  if (!selection) return;
+  navigator.clipboard?.writeText(selection).then(
+    () => showCopyToast("📋 Copied"),
+    () => {}
+  );
+});
+
+let copyToastEl = null;
+let copyToastTimer = 0;
+function showCopyToast(text) {
+  if (!copyToastEl) {
+    copyToastEl = document.createElement("div");
+    copyToastEl.className = "copy-toast";
+    document.body.appendChild(copyToastEl);
+  }
+  copyToastEl.textContent = text;
+  copyToastEl.classList.add("show");
+  clearTimeout(copyToastTimer);
+  copyToastTimer = window.setTimeout(() => {
+    copyToastEl.classList.remove("show");
+  }, 900);
+}
 
 const THEME_KEY = "chromeTerminal.theme";
 const THEMES = {
@@ -1026,14 +1092,95 @@ function prettyPath(abs, home) {
   return abs;
 }
 
+/**
+ * Per-project favicon: a colored monogram badge, deterministically generated from the
+ * project's name (same name always gets the same color+initials) so tabs stay visually
+ * distinct without maintaining a per-project asset. Falls back to the default terminal
+ * favicon.svg for anything outside ~/projects/<name> (home, vault, etc.).
+ */
+const DEFAULT_FAVICON_HREF = "favicon.svg";
+const faviconLink = document.getElementById("favicon-link");
+const faviconDataCache = new Map();
+let currentFaviconKey = "";
+
+function hashStringToHue(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  return hash % 360;
+}
+
+function projectInitials(name) {
+  const parts = String(name || "")
+    .split(/[-_\s.]+/)
+    .filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return "?";
+}
+
+function projectFaviconDataUrl(name) {
+  if (faviconDataCache.has(name)) return faviconDataCache.get(name);
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const hue = hashStringToHue(name);
+
+  const radius = 14;
+  ctx.fillStyle = `hsl(${hue}, 60%, 40%)`;
+  ctx.beginPath();
+  ctx.moveTo(radius, 0);
+  ctx.arcTo(size, 0, size, size, radius);
+  ctx.arcTo(size, size, 0, size, radius);
+  ctx.arcTo(0, size, 0, 0, radius);
+  ctx.arcTo(0, 0, size, 0, radius);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 28px Menlo, Monaco, 'Courier New', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(projectInitials(name), size / 2, size / 2 + 2);
+
+  const url = canvas.toDataURL("image/png");
+  faviconDataCache.set(name, url);
+  return url;
+}
+
+function setFavicon(href, key, isData) {
+  if (key === currentFaviconKey || !faviconLink) return;
+  currentFaviconKey = key;
+  faviconLink.type = isData ? "image/png" : "image/svg+xml";
+  faviconLink.href = href;
+}
+
+function updateFaviconForCwd(abs) {
+  const projectsRoot = (catalog.projectsDir || `${catalog.home}/projects`).replace(/\/$/, "");
+  if (abs && projectsRoot && abs.startsWith(projectsRoot + "/")) {
+    const projectName = abs.slice(projectsRoot.length + 1).split("/")[0];
+    if (projectName) {
+      setFavicon(projectFaviconDataUrl(projectName), `project:${projectName}`, true);
+      return;
+    }
+  }
+  setFavicon(DEFAULT_FAVICON_HREF, "default", false);
+}
+
 function applyCwd(abs, home) {
   currentCwdPath = abs || "";
+  if (currentCwdPath) sessionStorage.setItem(ACTIVE_PROJECT_DIR_KEY, currentCwdPath);
   if (home) catalog.home = home;
   const pretty = prettyPath(abs, catalog.home);
   pwdEl.textContent = pretty;
   pwdEl.title = abs || pretty;
   const base = (abs || pretty).replace(/\/$/, "").split("/").filter(Boolean).pop() || pretty;
   setWatermark(pretty.length > 36 ? `~/${base}` : pretty, false);
+  if (filesModal && !filesModal.hidden) loadRepoFiles(false);
+  updateFaviconForCwd(abs);
 }
 
 function setWatermark(text, persist = true) {
@@ -1390,6 +1537,9 @@ function renderEmojiPicker(cat = "all", searchQuery = "") {
 function cdTo(dirPath, badge) {
   sendCommand(`cd ${shellQuote(dirPath)}`);
   if (badge) setWatermark(badge);
+  // Optimistic: don't wait on the server's ~1.2s cwd poll before treating this as the
+  // active project — the server's next cwd tick will confirm/correct it shortly after.
+  if (dirPath && dirPath !== "$HOME") applyCwd(dirPath, catalog.home);
 }
 
 function goLastProject() {
@@ -1401,6 +1551,7 @@ function goLastProject() {
   if (newest) {
     setWatermark(newest.name);
     moveProjectToFront(newest.name);
+    if (newest.path) applyCwd(newest.path, catalog.home);
   }
 }
 
@@ -1458,6 +1609,403 @@ let builtinPrompts = [];
 
 function openGuide() {
   guideEl.hidden = false;
+}
+
+/**
+ * Repo Files modal — shows the file/folder structure of the active project
+ * (the shell's current working directory), not chromeTerminal itself.
+ */
+const filesState = {
+  files: [],
+  loaded: false,
+  loading: false,
+  loadedDir: "",
+};
+
+function buildFileTree(paths) {
+  const root = { name: "", type: "dir", children: new Map() };
+  for (const filePath of paths) {
+    const parts = filePath.split("/").filter(Boolean);
+    let node = root;
+    parts.forEach((part, i) => {
+      const isFile = i === parts.length - 1;
+      if (!node.children.has(part)) {
+        node.children.set(part, {
+          name: part,
+          type: isFile ? "file" : "dir",
+          path: parts.slice(0, i + 1).join("/"),
+          children: isFile ? null : new Map(),
+        });
+      }
+      node = node.children.get(part);
+    });
+  }
+  return root;
+}
+
+function renderFileTreeNode(node, depth) {
+  if (node.type === "file") {
+    const el = document.createElement("div");
+    el.className = "file-tree-file";
+    el.dataset.path = node.path;
+    el.title = node.path;
+    el.textContent = node.name;
+    return el;
+  }
+
+  const details = document.createElement("details");
+  details.className = "file-tree-dir";
+  details.dataset.path = node.path || "";
+  if (depth === 0) details.open = true;
+
+  const summary = document.createElement("summary");
+  summary.textContent = node.name || "/";
+  details.appendChild(summary);
+
+  const dirs = [];
+  const files = [];
+  for (const child of node.children.values()) {
+    (child.type === "dir" ? dirs : files).push(child);
+  }
+  dirs.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+
+  for (const child of [...dirs, ...files]) {
+    details.appendChild(renderFileTreeNode(child, depth + 1));
+  }
+
+  return details;
+}
+
+function renderFileTree() {
+  if (!filesTreeEl) return;
+  filesTreeEl.innerHTML = "";
+  const tree = buildFileTree(filesState.files);
+  for (const child of tree.children.values()) {
+    filesTreeEl.appendChild(renderFileTreeNode(child, 0));
+  }
+  if (filesCountEl) filesCountEl.textContent = `📄 ${filesState.files.length} files`;
+  applyFilesFilter();
+}
+
+function applyFilesFilter() {
+  if (!filesTreeEl) return;
+  const q = (filesFilterInput?.value || "").trim().toLowerCase();
+  const fileNodes = filesTreeEl.querySelectorAll(".file-tree-file");
+  if (!q) {
+    filesTreeEl.querySelectorAll(".file-tree-hidden").forEach((el) => el.classList.remove("file-tree-hidden"));
+    return;
+  }
+  fileNodes.forEach((el) => {
+    const matches = el.dataset.path.toLowerCase().includes(q);
+    el.classList.toggle("file-tree-hidden", !matches);
+  });
+  filesTreeEl.querySelectorAll(".file-tree-dir").forEach((dir) => {
+    const hasVisibleFile = !!dir.querySelector(".file-tree-file:not(.file-tree-hidden)");
+    const hasVisibleDir = [...dir.querySelectorAll(":scope > .file-tree-dir")].some(
+      (d) => !d.classList.contains("file-tree-hidden")
+    );
+    const visible = hasVisibleFile || hasVisibleDir;
+    dir.classList.toggle("file-tree-hidden", !visible);
+    if (visible) dir.open = true;
+  });
+}
+
+async function loadRepoFiles(force = false) {
+  if (!filesTreeEl) return;
+  if (filesState.loading) return;
+
+  // Never fall back to the chromeTerminal server's own install directory — if we don't yet
+  // know the active project's cwd, use the user's home dir, or wait rather than show that.
+  const targetDir = currentCwdPath || catalog.home || "";
+  if (filesState.loaded && !force && targetDir === filesState.loadedDir) return;
+
+  if (!isLocal) {
+    filesTreeEl.textContent = "Repo file listing only works when this page is served locally (http://127.0.0.1:3847), not on GitHub Pages.";
+    return;
+  }
+
+  if (!targetDir) {
+    filesTreeEl.textContent = "Waiting for the shell's working directory… cd into a project, then try again.";
+    return;
+  }
+
+  filesState.loading = true;
+  filesTreeEl.textContent = "Loading…";
+  try {
+    const token = tokenFromUrl();
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    if (targetDir) params.set("dir", targetDir);
+    const q = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`/api/repo-files${q}`);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    filesState.files = data.files || [];
+    filesState.loaded = true;
+    filesState.loadedDir = targetDir;
+    if (filesRepoName) {
+      filesRepoName.textContent = data.root || "project";
+      filesRepoName.title = data.dir || "";
+    }
+    renderFileTree();
+    if (data.truncated && filesCountEl) {
+      filesCountEl.textContent = `📄 ${filesState.files.length}+ files (truncated)`;
+    }
+  } catch (err) {
+    filesTreeEl.textContent = `Failed to load file list: ${err.message}`;
+  } finally {
+    filesState.loading = false;
+  }
+}
+
+function openFilesModal() {
+  if (filesModal) filesModal.hidden = false;
+  loadRepoFiles(false);
+}
+
+function closeFilesModal() {
+  if (filesModal) filesModal.hidden = true;
+  if (isLocal) term.focus();
+}
+
+/**
+ * Debug modal — live client state plus a server-side diagnostic check-in, so you can see
+ * exactly what chromeTerminal thinks is going on (active project dir, socket state, whether
+ * the cwd-watch is actually working) and paste a report when something looks wrong.
+ */
+const debugState = {
+  autoTimer: null,
+  lastServerData: null,
+  lastServerError: null,
+};
+
+function socketStateText() {
+  if (!socket) return "no socket";
+  switch (socket.readyState) {
+    case WebSocket.CONNECTING:
+      return "connecting";
+    case WebSocket.OPEN:
+      return "open";
+    case WebSocket.CLOSING:
+      return "closing";
+    case WebSocket.CLOSED:
+      return "closed";
+    default:
+      return String(socket.readyState);
+  }
+}
+
+function collectClientDebugRows() {
+  const panelState = loadPanelState();
+  const openPanels =
+    Object.entries(panelState)
+      .filter(([, open]) => open)
+      .map(([id]) => id)
+      .join(", ") || "none";
+  return [
+    ["Active project dir (currentCwdPath)", currentCwdPath || "(unknown)"],
+    ["…persisted in sessionStorage", sessionStorage.getItem(ACTIVE_PROJECT_DIR_KEY) || "(none)"],
+    ["pwd label (shown in title bar)", pwdEl?.textContent || ""],
+    ["catalog.home", catalog.home || "(not loaded yet)"],
+    ["catalog.projectsDir", catalog.projectsDir || "(not loaded yet)"],
+    ["catalog.projects count", String((catalog.projects || []).length)],
+    ["🗂️ Files — last loaded dir", filesState.loadedDir || "(not opened yet)"],
+    ["🗂️ Files — file count", String(filesState.files.length)],
+    ["🗂️ Files — loading", String(filesState.loading)],
+    ["WebSocket state", socketStateText()],
+    ["Session id", sessionStorage.getItem(SESSION_KEY) || "(none)"],
+    ["Reconnect attempts", String(resumeAttempts)],
+    ["isLocal", String(isLocal)],
+    ["Theme", localStorage.getItem(THEME_KEY) || "(default)"],
+    ["Watermark badge", watermarkEl?.textContent || "(none)"],
+    ["Open panels", openPanels],
+    ["Page URL", location.origin + location.pathname],
+  ];
+}
+
+function renderKvTable(tableEl, rows) {
+  if (!tableEl) return;
+  const tbody = tableEl.querySelector("tbody") || tableEl;
+  tbody.innerHTML = "";
+  for (const [label, value] of rows) {
+    const tr = document.createElement("tr");
+    const tdLabel = document.createElement("td");
+    tdLabel.textContent = label;
+    tdLabel.style.color = "var(--muted)";
+    tdLabel.style.whiteSpace = "nowrap";
+    const tdVal = document.createElement("td");
+    tdVal.className = "debug-val";
+    tdVal.textContent = value;
+    tr.append(tdLabel, tdVal);
+    tbody.appendChild(tr);
+  }
+}
+
+function renderClientDebug() {
+  renderKvTable(debugClientTable, collectClientDebugRows());
+}
+
+function renderServerDebug(data) {
+  if (!data) return;
+  const s = data.server || {};
+  const d = data.diagnostics || {};
+  const rows = [
+    ["Server PID", String(s.pid ?? "?")],
+    ["Listening on", `${s.host}:${s.port}`],
+    ["Shell", s.shell || "?"],
+    ["Projects dir", s.projectsDir || "?"],
+    ["chromeTerminal install dir", s.installDir || "?"],
+    ["Node version", s.nodeVersion || "?"],
+    ["Platform", s.platform || "?"],
+    ["Uptime", `${s.uptimeSec ?? "?"}s`],
+    ["Token required", String(!!s.tokenRequired)],
+    ["git available", String(!!d.gitAvailable) + (d.gitVersion ? ` (${d.gitVersion})` : "")],
+    ["lsof on PATH", String(!!d.lsofOnPath)],
+  ];
+
+  const lsofTest = d.lsofSelfTest || {};
+  let lsofRow;
+  if (lsofTest.applicable === false) {
+    lsofRow = "n/a (not macOS)";
+  } else if (lsofTest.ok) {
+    lsofRow = `✅ working — reports "${lsofTest.reportedCwd}"`;
+  } else {
+    lsofRow =
+      `❌ NOT working${lsofTest.error ? ` — ${lsofTest.error}` : ""} — the pwd label and 🗂️ Files will ` +
+      `go stale until this works. On macOS this is usually missing Full Disk Access for the terminal ` +
+      `app that launched "node server.js".`;
+  }
+  rows.push(["cwd-watch self-test", lsofRow]);
+
+  renderKvTable(debugServerTable, rows);
+
+  if (debugServerBadge) {
+    const healthy = d.lsofOnPath && lsofTest.ok !== false;
+    debugServerBadge.textContent = healthy ? "🟢 Healthy" : "🟡 Check cwd-watch";
+  }
+
+  if (debugSessionsTbody) {
+    debugSessionsTbody.innerHTML = "";
+    const sessionsList = data.sessions || [];
+    const myId = sessionStorage.getItem(SESSION_KEY);
+    if (!sessionsList.length) {
+      debugSessionsTbody.innerHTML =
+        '<tr><td colspan="6" style="text-align:center; color:var(--muted)">No active sessions</td></tr>';
+    } else {
+      for (const s of sessionsList) {
+        const tr = document.createElement("tr");
+        const idCell = document.createElement("td");
+        idCell.textContent = (s.id === myId ? "👉 " : "") + s.id.slice(0, 8);
+        const pidCell = document.createElement("td");
+        pidCell.textContent = s.pid ?? "—";
+        const cwdCell = document.createElement("td");
+        cwdCell.className = "debug-val";
+        cwdCell.textContent = s.lastCwd || "(unknown)";
+        const watchCell = document.createElement("td");
+        watchCell.innerHTML = s.cwdWatchActive
+          ? '<span class="debug-flag-ok">active</span>'
+          : '<span class="debug-flag-bad">stopped</span>';
+        const sockCell = document.createElement("td");
+        sockCell.innerHTML = s.hasLiveSocket ? '<span class="debug-flag-ok">live</span>' : "parked";
+        const ageCell = document.createElement("td");
+        ageCell.textContent = s.ageSec != null ? `${s.ageSec}s` : "—";
+        tr.append(idCell, pidCell, cwdCell, watchCell, sockCell, ageCell);
+        debugSessionsTbody.appendChild(tr);
+      }
+    }
+  }
+}
+
+async function refreshDebugPanel() {
+  renderClientDebug();
+  if (debugDiagTimestamp) debugDiagTimestamp.textContent = `Last checked: ${new Date().toLocaleTimeString()}`;
+
+  if (!isLocal) {
+    renderKvTable(debugServerTable, [
+      ["Server diagnostics", "unavailable — this page isn't served by the local chromeTerminal server (GitHub Pages)."],
+    ]);
+    if (debugSessionsTbody) {
+      debugSessionsTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted)">n/a</td></tr>';
+    }
+    return;
+  }
+
+  try {
+    const token = tokenFromUrl();
+    const q = token ? `?token=${encodeURIComponent(token)}` : "";
+    const res = await fetch(`/api/debug${q}`);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    debugState.lastServerData = data;
+    debugState.lastServerError = null;
+    renderServerDebug(data);
+    if (debugModalPill) {
+      debugModalPill.textContent = "🟢 Live";
+      debugModalPill.className = "net-pill net-pill-good";
+    }
+  } catch (err) {
+    debugState.lastServerError = err.message;
+    renderKvTable(debugServerTable, [["Error fetching server diagnostics", err.message]]);
+    if (debugModalPill) {
+      debugModalPill.textContent = "🔴 Server unreachable";
+      debugModalPill.className = "net-pill";
+    }
+  }
+}
+
+function startDebugAutoRefresh() {
+  stopDebugAutoRefresh();
+  debugState.autoTimer = window.setInterval(() => {
+    if (debugModal && !debugModal.hidden && debugAutoRefresh?.checked) refreshDebugPanel();
+  }, 3000);
+}
+
+function stopDebugAutoRefresh() {
+  if (debugState.autoTimer) {
+    clearInterval(debugState.autoTimer);
+    debugState.autoTimer = null;
+  }
+}
+
+function openDebugModal() {
+  if (debugModal) debugModal.hidden = false;
+  refreshDebugPanel();
+  startDebugAutoRefresh();
+}
+
+function closeDebugModal() {
+  if (debugModal) debugModal.hidden = true;
+  stopDebugAutoRefresh();
+  if (isLocal) term.focus();
+}
+
+function buildDebugReportText() {
+  const lines = ["# chromeTerminal debug report", `Generated: ${new Date().toISOString()}`, "", "## Client state"];
+  for (const [label, value] of collectClientDebugRows()) lines.push(`- ${label}: ${value}`);
+  lines.push("");
+  if (debugState.lastServerData) {
+    lines.push("## Server diagnostics", "```json", JSON.stringify(debugState.lastServerData, null, 2), "```");
+  } else if (debugState.lastServerError) {
+    lines.push("## Server diagnostics", `Error: ${debugState.lastServerError}`);
+  }
+  return lines.join("\n");
+}
+
+async function copyDebugReport() {
+  const text = buildDebugReportText();
+  try {
+    await navigator.clipboard.writeText(text);
+    if (btnCopyDebugDiag) {
+      const original = btnCopyDebugDiag.textContent;
+      btnCopyDebugDiag.textContent = "✅ Copied!";
+      setTimeout(() => {
+        btnCopyDebugDiag.textContent = original;
+      }, 1500);
+    }
+  } catch {
+    // clipboard unavailable — no-op
+  }
 }
 
 const netState = {
@@ -2880,6 +3428,7 @@ function connect(opts = {}) {
     if (msg.type === "output") {
       term.write(msg.data);
       notePushOutput(msg.data);
+      appendSessionLog(msg.data);
       noteActivity();
     }
     if (msg.type === "exit") {
@@ -2927,7 +3476,95 @@ function saveTerminalText() {
 }
 
 function stripAnsi(text) {
-  return String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
+  return String(text)
+    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "") // OSC sequences (e.g. window/tab title)
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "") // CSI sequences (color, cursor movement, etc.)
+    .replace(/\r/g, "");
+}
+
+// Session log: every chunk of shell output is auto-saved to localStorage under a per-day key,
+// so a "today's session log" can be retrieved even after a reload or crash — independent of the
+// live xterm buffer, which xterm itself may trim.
+const SESSION_LOG_PREFIX = "chromeTerminal.sessionLog.";
+const SESSION_LOG_MAX_CHARS = 1_000_000;
+
+function todaySessionLogKey() {
+  return SESSION_LOG_PREFIX + new Date().toISOString().slice(0, 10);
+}
+
+function appendSessionLog(chunk) {
+  const clean = stripAnsi(chunk);
+  if (!clean) return;
+  try {
+    const key = todaySessionLogKey();
+    const existing = localStorage.getItem(key) || "";
+    let updated = existing + clean;
+    if (updated.length > SESSION_LOG_MAX_CHARS) {
+      updated = updated.slice(updated.length - SESSION_LOG_MAX_CHARS);
+    }
+    localStorage.setItem(key, updated);
+  } catch {
+    /* storage full or unavailable — skip silently, live terminal is unaffected */
+  }
+}
+
+function renderSessionLogModal() {
+  if (!sessionLogModal) return;
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const log = localStorage.getItem(SESSION_LOG_PREFIX + dateStr) || "";
+  if (sessionLogDateEl) sessionLogDateEl.textContent = dateStr;
+  if (sessionLogSizeEl) sessionLogSizeEl.textContent = `${log.length.toLocaleString()} chars`;
+  if (sessionLogContentEl) {
+    sessionLogContentEl.textContent = log || "(nothing logged yet today)";
+  }
+}
+
+function openSessionLogModal() {
+  if (!sessionLogModal) return;
+  sessionLogModal.hidden = false;
+  renderSessionLogModal();
+}
+
+function closeSessionLogModal() {
+  if (!sessionLogModal) return;
+  sessionLogModal.hidden = true;
+  if (isLocal) term.focus();
+}
+
+if (sessionLogBtn) sessionLogBtn.addEventListener("click", openSessionLogModal);
+if (sessionLogModalClose) sessionLogModalClose.addEventListener("click", closeSessionLogModal);
+if (sessionLogModal) {
+  sessionLogModal.addEventListener("click", (event) => {
+    if (event.target === sessionLogModal) closeSessionLogModal();
+  });
+}
+if (btnSessionLogCopy) {
+  btnSessionLogCopy.addEventListener("click", () => {
+    const log = localStorage.getItem(todaySessionLogKey()) || "";
+    navigator.clipboard?.writeText(log).then(
+      () => showCopyToast("📋 Copied today's log"),
+      () => {}
+    );
+  });
+}
+if (btnSessionLogDownload) {
+  btnSessionLogDownload.addEventListener("click", () => {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const log = localStorage.getItem(SESSION_LOG_PREFIX + dateStr) || "";
+    const blob = new Blob([log], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chromeTerminal-session-log-${dateStr}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+if (btnSessionLogClear) {
+  btnSessionLogClear.addEventListener("click", () => {
+    localStorage.removeItem(todaySessionLogKey());
+    renderSessionLogModal();
+  });
 }
 
 function clearPushWatch() {
@@ -3081,7 +3718,27 @@ function sortPinnedProjectsAZ() {
   renderProjects();
 }
 
+function updateLatestProjectBadge() {
+  if (!latestProjectBadge) return;
+  const newest = [...(catalog.projects || [])].sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0))[0];
+  if (!newest) {
+    latestProjectBadge.hidden = true;
+    latestProjectBadge.onclick = null;
+    return;
+  }
+  latestProjectBadge.hidden = false;
+  latestProjectBadge.textContent = `📌 ${newest.name}`;
+  latestProjectBadge.title = newest.mtimeMs
+    ? `Most recently updated · ${newest.path} · ${new Date(newest.mtimeMs).toLocaleString()}`
+    : `Most recently updated · ${newest.path}`;
+  latestProjectBadge.onclick = () => {
+    cdTo(newest.path, newest.name);
+    moveProjectToFront(newest.name);
+  };
+}
+
 function renderProjects() {
+  updateLatestProjectBadge();
   const q = (projectFilter.value || "").trim().toLowerCase();
   const pinnedList = loadPinnedProjects();
   const pinnedSet = new Set(pinnedList);
@@ -3836,6 +4493,36 @@ guideEl.addEventListener("click", (event) => {
   if (event.target === guideEl) closeGuide();
 });
 
+if (btnFilesModal) btnFilesModal.addEventListener("click", openFilesModal);
+if (filesModalClose) filesModalClose.addEventListener("click", closeFilesModal);
+if (filesModal) {
+  filesModal.addEventListener("click", (event) => {
+    if (event.target === filesModal) closeFilesModal();
+  });
+}
+if (filesFilterInput) filesFilterInput.addEventListener("input", applyFilesFilter);
+if (btnFilesExpandAll) {
+  btnFilesExpandAll.addEventListener("click", () => {
+    filesTreeEl?.querySelectorAll(".file-tree-dir").forEach((d) => (d.open = true));
+  });
+}
+if (btnFilesCollapseAll) {
+  btnFilesCollapseAll.addEventListener("click", () => {
+    filesTreeEl?.querySelectorAll(".file-tree-dir").forEach((d) => (d.open = false));
+  });
+}
+if (btnFilesRefresh) btnFilesRefresh.addEventListener("click", () => loadRepoFiles(true));
+
+if (btnDebugModal) btnDebugModal.addEventListener("click", openDebugModal);
+if (debugModalClose) debugModalClose.addEventListener("click", closeDebugModal);
+if (debugModal) {
+  debugModal.addEventListener("click", (event) => {
+    if (event.target === debugModal) closeDebugModal();
+  });
+}
+if (btnDebugRefresh) btnDebugRefresh.addEventListener("click", () => refreshDebugPanel());
+if (btnCopyDebugDiag) btnCopyDebugDiag.addEventListener("click", copyDebugReport);
+
 if (netQualityBadge) netQualityBadge.addEventListener("click", openNetModal);
 if (btnNetModal) btnNetModal.addEventListener("click", openNetModal);
 if (netModalClose) netModalClose.addEventListener("click", closeNetModal);
@@ -4020,6 +4707,14 @@ document.addEventListener("keydown", (event) => {
   }
   if (azureSyncModal && !azureSyncModal.hidden) {
     closeAzureSyncModal();
+    return;
+  }
+  if (filesModal && !filesModal.hidden) {
+    closeFilesModal();
+    return;
+  }
+  if (debugModal && !debugModal.hidden) {
+    closeDebugModal();
     return;
   }
   if (emojiPickerModal && !emojiPickerModal.hidden) {

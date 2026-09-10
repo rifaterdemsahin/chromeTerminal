@@ -703,6 +703,100 @@ app.post("/api/secondbrain/launch-dashboard", async (req, res) => {
   res.json({ ok: true, url: dashboardUrl, ...result });
 });
 
+const REPO_FILES_IGNORE_DIRS = new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  ".next",
+  ".nuxt",
+  ".cache",
+  "__pycache__",
+  ".venv",
+  "venv",
+  ".DS_Store",
+]);
+const REPO_FILES_MAX_ENTRIES = 6000;
+
+// Manual recursive walk, used when the active directory isn't a git repo (or `git ls-files`
+// fails there) so the Files modal still shows something instead of an error.
+function walkDirForFiles(rootDir) {
+  const files = [];
+  const stack = [""];
+  while (stack.length && files.length < REPO_FILES_MAX_ENTRIES) {
+    const rel = stack.pop();
+    const abs = rel ? path.join(rootDir, rel) : rootDir;
+    let entries;
+    try {
+      entries = fs.readdirSync(abs, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") && entry.name !== ".gitignore" && entry.name !== ".github") continue;
+      if (REPO_FILES_IGNORE_DIRS.has(entry.name)) continue;
+      const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        stack.push(entryRel);
+      } else if (entry.isFile()) {
+        files.push(entryRel);
+        if (files.length >= REPO_FILES_MAX_ENTRIES) break;
+      }
+    }
+  }
+  return files;
+}
+
+app.get("/api/repo-files", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
+  const requestedDir = typeof req.query.dir === "string" ? req.query.dir.trim() : "";
+  const targetDir = requestedDir ? path.resolve(requestedDir) : __dirname;
+
+  let stat;
+  try {
+    stat = fs.statSync(targetDir);
+  } catch {
+    res.status(404).json({ ok: false, error: `Directory not found: ${targetDir}`, root: path.basename(targetDir) });
+    return;
+  }
+  if (!stat.isDirectory()) {
+    res.status(400).json({ ok: false, error: `Not a directory: ${targetDir}`, root: path.basename(targetDir) });
+    return;
+  }
+
+  let files = [];
+  let source = "git";
+  try {
+    const { stdout } = await execFileAsync("git", ["ls-files"], {
+      cwd: targetDir,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    files = stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  } catch {
+    source = "walk";
+    files = walkDirForFiles(targetDir);
+  }
+
+  files.sort((a, b) => a.localeCompare(b));
+  res.json({
+    ok: true,
+    root: path.basename(targetDir),
+    dir: targetDir,
+    source,
+    fileCount: files.length,
+    truncated: files.length >= REPO_FILES_MAX_ENTRIES,
+    files,
+  });
+});
+
 app.get("/api/projects", (req, res) => {
   if (!authorizedHttp(req)) {
     res.status(401).json({ error: "unauthorized" });
@@ -968,6 +1062,69 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/pty" });
 const sessions = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000;
+
+// Self-test of the same lsof call startCwdWatch() relies on, run against this very server
+// process (whose cwd is known: __dirname). If this fails, the cwd-watch that drives the
+// pwd label / 🗂️ Files / active-project tracking is silently not working on this machine
+// (commonly missing Full Disk Access for the terminal running node on macOS).
+async function lsofSelfTest() {
+  if (process.platform !== "darwin") return { applicable: false };
+  try {
+    const cwd = await readCwd(process.pid);
+    return { applicable: true, ok: !!cwd, reportedCwd: cwd || null, expectedCwd: __dirname };
+  } catch (err) {
+    return { applicable: true, ok: false, error: err.message };
+  }
+}
+
+app.get("/api/debug", async (req, res) => {
+  if (!authorizedHttp(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
+  const [lsofTest, lsofWhich, gitVersion] = await Promise.allSettled([
+    lsofSelfTest(),
+    execFileAsync("which", ["lsof"]),
+    execFileAsync("git", ["--version"]),
+  ]);
+
+  const sessionsInfo = [...sessions.values()].map((s) => ({
+    id: s.id,
+    pid: s.pty?.pid || null,
+    lastCwd: s.lastCwd || "",
+    cwdWatchActive: !!s.cwdTimer,
+    hasLiveSocket: !!(s.ws && s.ws.readyState === s.ws.OPEN),
+    startedAt: s.startedAt || null,
+    ageSec: s.startedAt ? Math.round((Date.now() - s.startedAt) / 1000) : null,
+  }));
+
+  res.json({
+    ok: true,
+    timestamp: Date.now(),
+    server: {
+      pid: process.pid,
+      port: PORT,
+      host: HOST,
+      shell: SHELL,
+      projectsDir: PROJECTS_DIR,
+      installDir: __dirname,
+      nodeVersion: process.version,
+      platform: process.platform,
+      uptimeSec: Math.round(process.uptime()),
+      tokenRequired: !!TOKEN,
+    },
+    diagnostics: {
+      lsofOnPath: lsofWhich.status === "fulfilled",
+      lsofSelfTest: lsofTest.status === "fulfilled" ? lsofTest.value : { ok: false, error: lsofTest.reason?.message },
+      gitAvailable: gitVersion.status === "fulfilled",
+      gitVersion: gitVersion.status === "fulfilled" ? gitVersion.value.stdout.trim() : null,
+    },
+    sessionCount: sessionsInfo.length,
+    sessions: sessionsInfo,
+  });
+});
 
 async function readCwd(pid) {
   if (!pid) return "";

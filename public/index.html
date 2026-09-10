@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>chromeTerminal</title>
+    <link rel="icon" id="favicon-link" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -46,6 +47,7 @@
         </div>
         <div class="titlebar-actions">
           <button id="btn-save" type="button" title="Download the current terminal buffer as a .txt file">💾 Save</button>
+          <button id="btn-session-log" type="button" title="View today's session log — terminal output auto-saved to local storage as it streams in">🗓️ Today's Log</button>
           <button
             id="btn-dictate"
             type="button"
@@ -54,6 +56,7 @@
             🎤 Dictate
           </button>
           <button type="button" id="btn-prompts" title="Reusable prompts to insert or send into the terminal">📚 Prompts</button>
+          <button type="button" id="btn-files-modal" title="Show the files and folder structure of the active project (the shell's current directory)">🗂️ Files</button>
           <button id="btn-new-tab" type="button" title="Open a new shell session in a new browser tab">🆕 New</button>
           <button id="btn-focus" type="button" title="Hide chrome panels so the terminal fills the window">🧘 Focus</button>
           <button id="btn-fullscreen" type="button" title="Fill the whole screen">⛶ Fullscreen</button>
@@ -109,6 +112,7 @@
           <input id="project-filter" type="search" placeholder="🔍 Filter projects…" autocomplete="off" aria-label="Filter projects" />
           <button type="button" id="btn-sort-name" class="theme-btn" title="Sort all projects A–Z">🔤 A–Z</button>
           <button type="button" id="btn-sort-latest" class="theme-btn" title="Sort all projects by last modified">🕒 Latest</button>
+          <button type="button" id="btn-latest-project" class="theme-btn latest-project-badge" title="Most recently updated project" hidden></button>
           <button type="button" class="panel-close-btn" data-panel-close="projects" title="Collapse Projects" aria-label="Collapse Projects">✕</button>
         </div>
         <div class="project-bar" id="project-bar" aria-label="Project shortcuts"></div>
@@ -276,6 +280,7 @@
       <div class="theme-bar help-bar" data-panel="help" role="region" aria-label="Help shortcuts">
         <span class="menu-label">❓ Help</span>
         <button type="button" id="btn-guide" class="accent" title="Open the interactive chromeTerminal guide">📖 Guide</button>
+        <button type="button" id="btn-debug-modal" class="accent" title="Live internal state and server diagnostics — for troubleshooting when something isn't working right">🐞 Debug</button>
         <a class="nav-link accent" href="features.html" title="Full chromeTerminal features list">✨ Features</a>
         <a class="nav-link" href="macos-start.html" title="macOS Start at Login walkthrough">🍎 Login</a>
         <a
@@ -609,6 +614,85 @@
       </div>
     </aside>
 
+    <aside id="debug-modal" class="guide" hidden>
+      <div class="guide-panel debug-panel" role="dialog" aria-labelledby="debug-modal-title">
+        <div class="guide-head">
+          <div class="net-modal-title-wrap">
+            <h1 id="debug-modal-title">🐞 Debug diagnostics</h1>
+            <span id="debug-modal-pill" class="net-pill net-pill-good">🟢 Live</span>
+          </div>
+          <button type="button" id="debug-modal-close">Close</button>
+        </div>
+
+        <p class="net-summary-text">
+          Live internal state of this page plus a check-in with the server. If something looks
+          wrong here — an unexpected working directory, a red flag below — copy the report and
+          paste it to whoever's helping you debug it.
+        </p>
+
+        <div class="net-section-box">
+          <div class="net-section-header">
+            <h3>🧭 Active project &amp; UI state (this browser tab)</h3>
+            <div class="net-test-actions">
+              <button type="button" id="btn-debug-refresh" class="accent">🔄 Refresh</button>
+              <label class="debug-auto-label">
+                <input type="checkbox" id="debug-auto-refresh" checked /> Auto-refresh
+              </label>
+            </div>
+          </div>
+          <div class="net-details-table-wrap">
+            <table class="net-table" id="debug-client-table">
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="net-section-box">
+          <div class="net-section-header">
+            <h3>🖥️ Server &amp; cwd-tracking diagnostics</h3>
+            <span class="net-section-badge" id="debug-server-badge">--</span>
+          </div>
+          <div class="net-details-table-wrap">
+            <table class="net-table" id="debug-server-table">
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="net-section-box">
+          <div class="net-section-header">
+            <h3>🔌 Shell sessions on this server</h3>
+          </div>
+          <div class="net-details-table-wrap">
+            <table class="net-table">
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>PID</th>
+                  <th>Last known cwd</th>
+                  <th>cwd-watch</th>
+                  <th>Socket</th>
+                  <th>Age</th>
+                </tr>
+              </thead>
+              <tbody id="debug-sessions-tbody">
+                <tr>
+                  <td colspan="6" style="text-align:center; color:var(--muted)">Loading…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="net-diag-footer">
+          <div class="net-diag-info">
+            <span id="debug-diag-timestamp">Last checked: Just now</span>
+          </div>
+          <button type="button" id="btn-copy-debug-diag" class="theme-btn" title="Copy the full debug report as text">📋 Copy Report</button>
+        </div>
+      </div>
+    </aside>
+
     <aside id="emoji-picker-modal" class="guide emoji-picker-overlay" hidden>
       <div class="guide-panel emoji-picker-panel" role="dialog" aria-labelledby="emoji-picker-title">
         <div class="guide-head emoji-picker-head">
@@ -711,6 +795,51 @@
           <div class="azure-footer-info">
             <span>Mandate: Local servers assigned unique ports <strong>&gt;30,000</strong> to avoid collisions. Initial pages launch in <strong>Google Chrome</strong>.</span>
           </div>
+        </div>
+      </div>
+    </aside>
+
+    <aside id="session-log-modal" class="guide" hidden>
+      <div class="guide-panel session-log-panel" role="dialog" aria-labelledby="session-log-modal-title">
+        <div class="guide-head">
+          <h1 id="session-log-modal-title">🗓️ Today's session log</h1>
+          <button type="button" id="session-log-modal-close">Close</button>
+        </div>
+        <p class="prompt-help">
+          Terminal output is continuously auto-saved to local storage (per calendar day), so it survives a page
+          reload or crash. This shows <code id="session-log-date">today's</code> log — <span id="session-log-size">0 chars</span>.
+        </p>
+        <div class="files-toolbar">
+          <button type="button" id="btn-session-log-copy" class="theme-btn" title="Copy the full log to the clipboard">📋 Copy all</button>
+          <button type="button" id="btn-session-log-download" class="theme-btn" title="Download today's log as a .txt file">💾 Download</button>
+          <button type="button" id="btn-session-log-clear" class="theme-btn" title="Clear today's saved log from local storage">🗑️ Clear</button>
+        </div>
+        <div class="files-tree-wrap">
+          <pre id="session-log-content" class="session-log-content">Loading…</pre>
+        </div>
+      </div>
+    </aside>
+
+    <aside id="files-modal" class="guide" hidden>
+      <div class="guide-panel files-panel" role="dialog" aria-labelledby="files-modal-title">
+        <div class="guide-head">
+          <h1 id="files-modal-title">🗂️ Project files</h1>
+          <button type="button" id="files-modal-close">Close</button>
+        </div>
+        <p class="prompt-help">
+          Files in the active project — <code id="files-repo-name">current directory</code> — the shell's current
+          working directory. Git-tracked files via <code>git ls-files</code> when it's a repo, otherwise a plain
+          directory listing. Folders are collapsible.
+        </p>
+        <div class="files-toolbar">
+          <input id="files-filter" type="search" placeholder="🔍 Filter files…" autocomplete="off" aria-label="Filter files" />
+          <button type="button" id="btn-files-expand-all" class="theme-btn" title="Expand every folder">📂 Expand all</button>
+          <button type="button" id="btn-files-collapse-all" class="theme-btn" title="Collapse every folder">📦 Collapse all</button>
+          <button type="button" id="btn-files-refresh" class="theme-btn" title="Reload the file list">🔄 Refresh</button>
+          <span id="files-count" class="testing-stat-chip">— files</span>
+        </div>
+        <div class="files-tree-wrap">
+          <div id="files-tree" class="file-tree">Loading…</div>
         </div>
       </div>
     </aside>
