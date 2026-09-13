@@ -4273,6 +4273,22 @@ reconnectBtn.addEventListener("click", () => {
   connect({ reset: true });
 });
 
+// Forces xterm.js to redraw every cell — the standard fix for garbled/overlapping
+// rows the DOM renderer occasionally leaves behind, without dropping scrollback
+// or the live shell session the way a full Reconnect would.
+document.getElementById("btn-fix-render").addEventListener("click", () => {
+  try {
+    const { cols, rows } = term;
+    term.resize(Math.max(2, cols - 1), rows);
+    term.resize(cols, rows);
+    fitAddon.fit();
+    term.refresh(0, Math.max(0, term.rows - 1));
+    term.focus();
+  } catch {
+    // terminal not ready
+  }
+});
+
 saveBtn.addEventListener("click", saveTerminalText);
 
 newTabBtn.addEventListener("click", () => {

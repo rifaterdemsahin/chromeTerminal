@@ -7,9 +7,10 @@ const PORT = Number(process.env.PORT) || 30847;
 const HOST = process.env.HOST || "127.0.0.1";
 const HEALTH_URL = `http://${HOST}:${PORT}/health`;
 const HEALTH_EVERY_MS = 4000;
-const START_GRACE_MS = 2500;
+const START_GRACE_MS = 4000;
 const BACKOFF_MIN_MS = 800;
 const BACKOFF_MAX_MS = 15000;
+const HEALTH_FAILURE_THRESHOLD = 2;
 
 let child = null;
 let stopping = false;
@@ -17,6 +18,7 @@ let backoffMs = BACKOFF_MIN_MS;
 let startedAt = 0;
 let restartTimer = null;
 let healthTimer = null;
+let consecutiveHealthFailures = 0;
 
 function log(msg) {
   console.log(`[keep-alive ${new Date().toISOString()}] ${msg}`);
@@ -25,7 +27,10 @@ function log(msg) {
 function startServer() {
   if (stopping || child) return;
   startedAt = Date.now();
-  child = spawn(process.execPath, ["server.js"], {
+  consecutiveHealthFailures = 0;
+  // Resolve "node" via PATH at each spawn (not process.execPath) so a Homebrew/nvm
+  // node upgrade that removes the old versioned binary can't break the respawn.
+  child = spawn("node", ["server.js"], {
     cwd: root,
     stdio: "inherit",
     env: process.env,
@@ -86,10 +91,14 @@ async function checkHealth() {
   if (Date.now() - startedAt < START_GRACE_MS) return;
   if (await healthy()) {
     backoffMs = BACKOFF_MIN_MS;
+    consecutiveHealthFailures = 0;
     return;
   }
-  log(`health check failed at ${HEALTH_URL}`);
-  killServer("port/health down");
+  consecutiveHealthFailures += 1;
+  log(`health check failed at ${HEALTH_URL} (${consecutiveHealthFailures}/${HEALTH_FAILURE_THRESHOLD})`);
+  if (consecutiveHealthFailures >= HEALTH_FAILURE_THRESHOLD) {
+    killServer("port/health down");
+  }
 }
 
 function shutdown() {

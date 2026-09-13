@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import dns from "node:dns";
 import fs from "node:fs";
 import http from "node:http";
@@ -693,14 +693,67 @@ app.get("/api/check-infra", async (req, res) => {
   });
 });
 
+const SECONDBRAIN_DASHBOARD_DIR =
+  "/Users/rifaterdemsahin/secondbrain-azurefiles/secondbrain/3_Resources_Constraints/dashboard";
+const SECONDBRAIN_DASHBOARD_LOG = "/tmp/dashboard_server.log";
+
+async function isSecondBrainDashboardUp(dashboardUrl) {
+  try {
+    const response = await fetch(dashboardUrl, {
+      method: "GET",
+      signal: AbortSignal.timeout(2000),
+    });
+    return response.ok || response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+// Starts the dashboard's server.py in the background (same recipe as the /dash
+// slash command) and waits briefly for it to come up before returning.
+async function startSecondBrainDashboard() {
+  const logFd = fs.openSync(SECONDBRAIN_DASHBOARD_LOG, "a");
+  const child = spawn("python3", ["server.py"], {
+    cwd: SECONDBRAIN_DASHBOARD_DIR,
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+  });
+  child.unref();
+  fs.closeSync(logFd);
+
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (await isSecondBrainDashboardUp("http://localhost:8899/")) {
+      return { ok: true };
+    }
+  }
+  let logTail = "";
+  try {
+    logTail = fs.readFileSync(SECONDBRAIN_DASHBOARD_LOG, "utf8").slice(-2000);
+  } catch {
+    // ignore
+  }
+  return { ok: false, error: "Dashboard server did not come up in time", logTail };
+}
+
 app.post("/api/secondbrain/launch-dashboard", async (req, res) => {
   if (!authorizedHttp(req)) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
   const dashboardUrl = req.body?.url || "http://localhost:8899";
+
+  let startResult = { ok: true, alreadyRunning: true };
+  if (!(await isSecondBrainDashboardUp(dashboardUrl))) {
+    startResult = await startSecondBrainDashboard();
+  }
+  if (!startResult.ok) {
+    res.status(502).json({ ok: false, url: dashboardUrl, ...startResult });
+    return;
+  }
+
   const result = await openPageInChrome(dashboardUrl);
-  res.json({ ok: true, url: dashboardUrl, ...result });
+  res.json({ ok: true, url: dashboardUrl, ...startResult, ...result });
 });
 
 const REPO_FILES_IGNORE_DIRS = new Set([
