@@ -61,6 +61,8 @@
           <button id="btn-focus" type="button" title="Hide chrome panels so the terminal fills the window">🧘 Focus</button>
           <button id="btn-fullscreen" type="button" title="Fill the whole screen">⛶ Fullscreen</button>
           <button id="btn-fix-render" type="button" title="Terminal looking garbled or glitchy? Force a full repaint without losing scrollback">🩹 Fix Render</button>
+          <button id="btn-font-decrease" type="button" title="Decrease terminal font size">🔡 A-</button>
+          <button id="btn-font-increase" type="button" title="Increase terminal font size">🔠 A+</button>
           <button id="reconnect" type="button" class="primary-action" title="Reconnect the shell session">🔄 Reconnect</button>
         </div>
       </header>
@@ -122,10 +124,7 @@
       <div class="theme-bar agents-bar" data-panel="agents" role="region" aria-label="Agent tools and shortcuts">
         <div class="menu-group">
           <span class="menu-label">Run</span>
-          <button type="button" class="accent" data-run="grok --effort medium --permission-mode acceptEdits" data-badge="grok" title="Run grok in shell (medium effort, accept edits)">🤖 grok</button>
-          <button type="button" class="accent" data-run="claude --model sonnet --effort medium --dangerously-skip-permissions" data-badge="claude" title="Run claude in shell (medium effort, sonnet)">🎭 claude</button>
-          <button type="button" class="accent" data-run="agy --effort medium --mode accept-edits" data-badge="agy" title="Run agy in shell (medium effort, accept edits)">✨ agy</button>
-          <button type="button" class="accent" data-run="kilo" data-badge="deepseek" title="Run DeepSeek with Kilo in shell">🐋 deepseek</button>
+          <span id="agents-run-list" class="agents-list"></span>
           <button type="button" id="btn-agent-main-page" class="accent" title="Run the server: launches agy and automatically sends 'open the main page with <port>' via timer">▶️ Run the server</button>
           <button
             type="button"
@@ -134,6 +133,10 @@
           >
             📋 ls5
           </button>
+        </div>
+        <div class="menu-group" id="agents-disabled-group" hidden>
+          <span class="menu-label">Disabled</span>
+          <span id="agents-disabled-list" class="agents-list"></span>
         </div>
         <div class="menu-group">
           <span class="menu-label">Effort</span>

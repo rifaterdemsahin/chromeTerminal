@@ -208,10 +208,20 @@ const PUSH_LEAVE_DELAY_MS = 8000;
 const isLocal =
   location.hostname === "127.0.0.1" || location.hostname === "localhost";
 
+const FONT_SIZE_KEY = "chromeTerminal.fontSize";
+const FONT_SIZE_MIN = 8;
+const FONT_SIZE_MAX = 32;
+const DEFAULT_FONT_SIZE = 13;
+const savedFontSize = parseInt(localStorage.getItem(FONT_SIZE_KEY), 10);
+const initialFontSize =
+  Number.isFinite(savedFontSize) && savedFontSize >= FONT_SIZE_MIN && savedFontSize <= FONT_SIZE_MAX
+    ? savedFontSize
+    : DEFAULT_FONT_SIZE;
+
 const term = new Terminal({
   cursorBlink: true,
   fontFamily: "Menlo, Monaco, 'Courier New', monospace",
-  fontSize: 13,
+  fontSize: initialFontSize,
   theme: {
     background: "#0f1115",
     foreground: "#e8eaed",
@@ -4289,6 +4299,21 @@ document.getElementById("btn-fix-render").addEventListener("click", () => {
   }
 });
 
+function setFontSize(size) {
+  const clamped = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, size));
+  term.options.fontSize = clamped;
+  localStorage.setItem(FONT_SIZE_KEY, String(clamped));
+  fit();
+}
+
+document.getElementById("btn-font-increase").addEventListener("click", () => {
+  setFontSize(term.options.fontSize + 1);
+});
+
+document.getElementById("btn-font-decrease").addEventListener("click", () => {
+  setFontSize(term.options.fontSize - 1);
+});
+
 saveBtn.addEventListener("click", saveTerminalText);
 
 newTabBtn.addEventListener("click", () => {
@@ -4315,18 +4340,83 @@ document.getElementById("btn-projects").addEventListener("click", () => {
 
 document.getElementById("btn-last-project").addEventListener("click", goLastProject);
 
-document.querySelectorAll("[data-run]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const cmd = btn.getAttribute("data-run");
-    const badge = btn.getAttribute("data-badge") || cmd;
-    sendCommand(cmd);
-    if (badge) setWatermark(badge);
-    setActiveAgent(badge, cmd);
-  });
-});
-
 if (btnRerunAgent) btnRerunAgent.addEventListener("click", rerunLastAgent);
 if (btnStopAgent) btnStopAgent.addEventListener("click", stopRunningAgent);
+
+const AGENTS = [
+  { id: "grok", cmd: "grok --effort medium --permission-mode acceptEdits", badge: "grok", label: "🤖 grok", title: "Run grok in shell (medium effort, accept edits)" },
+  { id: "claude", cmd: "claude --model sonnet --effort medium --dangerously-skip-permissions", badge: "claude", label: "🎭 claude", title: "Run claude in shell (medium effort, sonnet)" },
+  { id: "agy", cmd: "agy --effort medium --mode accept-edits", badge: "agy", label: "✨ agy", title: "Run agy in shell (medium effort, accept edits)" },
+  { id: "deepseek", cmd: "kilo", badge: "deepseek", label: "🐋 deepseek", title: "Run DeepSeek with Kilo in shell" },
+];
+const DISABLED_AGENTS_KEY = "chromeTerminal.disabledAgents";
+const agentsRunList = document.getElementById("agents-run-list");
+const agentsDisabledGroup = document.getElementById("agents-disabled-group");
+const agentsDisabledList = document.getElementById("agents-disabled-list");
+
+function loadDisabledAgents() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DISABLED_AGENTS_KEY) || "[]");
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch {
+    return new Set();
+  }
+}
+
+let disabledAgents = loadDisabledAgents();
+
+function saveDisabledAgents() {
+  localStorage.setItem(DISABLED_AGENTS_KEY, JSON.stringify([...disabledAgents]));
+}
+
+function renderAgentButtons() {
+  if (!agentsRunList || !agentsDisabledList) return;
+  agentsRunList.innerHTML = "";
+  agentsDisabledList.innerHTML = "";
+
+  AGENTS.forEach((agent) => {
+    const isDisabled = disabledAgents.has(agent.id);
+    const wrap = document.createElement("span");
+    wrap.className = "agent-item";
+
+    const runBtn = document.createElement("button");
+    runBtn.type = "button";
+    runBtn.className = "accent";
+    runBtn.textContent = agent.label;
+    runBtn.title = agent.title;
+    runBtn.disabled = isDisabled;
+    if (!isDisabled) {
+      runBtn.addEventListener("click", () => {
+        sendCommand(agent.cmd);
+        setWatermark(agent.badge);
+        setActiveAgent(agent.badge, agent.cmd);
+      });
+    }
+    wrap.appendChild(runBtn);
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "agent-toggle-btn";
+    toggleBtn.textContent = isDisabled ? "↩" : "🚫";
+    toggleBtn.title = isDisabled ? `Re-enable ${agent.id}` : `Disable ${agent.id}`;
+    toggleBtn.addEventListener("click", () => {
+      if (disabledAgents.has(agent.id)) {
+        disabledAgents.delete(agent.id);
+      } else {
+        disabledAgents.add(agent.id);
+      }
+      saveDisabledAgents();
+      renderAgentButtons();
+    });
+    wrap.appendChild(toggleBtn);
+
+    (isDisabled ? agentsDisabledList : agentsRunList).appendChild(wrap);
+  });
+
+  if (agentsDisabledGroup) agentsDisabledGroup.hidden = disabledAgents.size === 0;
+}
+
+renderAgentButtons();
 
 document.querySelectorAll("[data-effort]").forEach((btn) => {
   btn.addEventListener("click", () => {
