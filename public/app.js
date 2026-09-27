@@ -4860,14 +4860,32 @@ function savePanelState(state) {
 }
 
 function applyPanelState(state) {
+  let openCount = 0;
+  const panels = document.querySelectorAll("[data-panel]");
   for (const id of PANEL_IDS) {
     const el = document.querySelector(`[data-panel="${id}"]`);
     const on = state[id] !== false;
-    if (el) el.classList.toggle("collapsed", !on);
+    if (el && on) openCount += 1;
+    if (el) {
+      el.classList.toggle("collapsed", !on);
+      el.hidden = !on;
+    }
     document.querySelectorAll(`[data-panel-toggle="${id}"]`).forEach((btn) => {
       btn.classList.toggle("active", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
     });
+  }
+  const collapseBtn = document.getElementById("btn-collapse-all");
+  const expandBtn = document.getElementById("btn-expand-all");
+  const allClosed = panels.length > 0 && openCount === 0;
+  const allOpen = panels.length > 0 && openCount === panels.length;
+  if (collapseBtn) {
+    collapseBtn.classList.toggle("active", allClosed);
+    collapseBtn.setAttribute("aria-pressed", allClosed ? "true" : "false");
+  }
+  if (expandBtn) {
+    expandBtn.classList.toggle("active", allOpen);
+    expandBtn.setAttribute("aria-pressed", allOpen ? "true" : "false");
   }
   fit();
 }
@@ -4880,9 +4898,13 @@ function togglePanel(id) {
 }
 
 function setAllPanels(on) {
-  const state = Object.fromEntries(PANEL_IDS.map((id) => [id, on]));
-  savePanelState(state);
+  const state = Object.fromEntries(PANEL_IDS.map((id) => [id, Boolean(on)]));
   applyPanelState(state);
+  try {
+    savePanelState(state);
+  } catch {
+    // The strips are already updated. A full session log can make localStorage throw.
+  }
 }
 
 function isFullscreen() {
@@ -4906,6 +4928,14 @@ function syncFullscreenButton() {
 }
 
 document.getElementById("panel-dock").addEventListener("click", (event) => {
+  if (event.target.closest("#btn-collapse-all")) {
+    setAllPanels(false);
+    return;
+  }
+  if (event.target.closest("#btn-expand-all")) {
+    setAllPanels(true);
+    return;
+  }
   const btn = event.target.closest("[data-panel-toggle]");
   if (!btn) return;
   togglePanel(btn.getAttribute("data-panel-toggle"));
@@ -4921,8 +4951,14 @@ document.addEventListener("click", (event) => {
   applyPanelState(state);
 });
 
-document.getElementById("btn-collapse-all").addEventListener("click", () => setAllPanels(false));
-document.getElementById("btn-expand-all").addEventListener("click", () => setAllPanels(true));
+document.getElementById("btn-collapse-all").addEventListener("click", (event) => {
+  event.stopPropagation();
+  setAllPanels(false);
+});
+document.getElementById("btn-expand-all").addEventListener("click", (event) => {
+  event.stopPropagation();
+  setAllPanels(true);
+});
 
 document.getElementById("btn-focus").addEventListener("click", () => {
   const anyOpen = PANEL_IDS.some((id) => loadPanelState()[id]);

@@ -36,7 +36,8 @@ body {
   height: 100%;
 }
 
-[data-panel].collapsed {
+[data-panel].collapsed,
+[data-panel][hidden] {
   display: none !important;
 }
 
